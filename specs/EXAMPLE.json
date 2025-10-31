@@ -1,0 +1,37 @@
+{
+  "task_id": "TASK-EXAMPLE",
+  "created_by": "Agent(Analyste-Example)",
+  "domain": "Example",
+  "title": "Example Task Specification",
+  "description": "This is an example task specification showing the required format. Real specs will be generated automatically by Phase 1 specialist analysts.",
+  "requirements": [
+    "This is a requirement example",
+    "Requirements should be specific and technical",
+    "Include technology choices (e.g., 'Use React hooks')",
+    "Specify constraints (e.g., 'Must handle errors gracefully')"
+  ],
+  "files_scope": [
+    "src/example/",
+    "tests/example/",
+    "docs/example.md"
+  ],
+  "acceptance_criteria": [
+    "A test proves that the main functionality works",
+    "Code passes linting with no errors",
+    "Documentation is complete and accurate",
+    "All edge cases are handled"
+  ],
+  "dependencies": [],
+  "priority": "medium",
+  "estimated_complexity": "moderate",
+  "tags": [
+    "example",
+    "template"
+  ],
+  "technical_notes": "This is an example spec. Delete this file before running the real pipeline.",
+  "metadata": {
+    "created_at": "2025-01-01T00:00:00Z",
+    "analyst_version": "1.0",
+    "spec_version": "1.0"
+  }
+}

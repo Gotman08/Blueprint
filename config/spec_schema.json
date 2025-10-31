@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/task-spec.schema.json",
+  "title": "Task Specification",
+  "description": "Schema for task specifications in the generative agent pipeline",
+  "type": "object",
+  "required": [
+    "task_id",
+    "domain",
+    "title",
+    "description",
+    "requirements",
+    "acceptance_criteria"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "Unique task identifier",
+      "pattern": "^TASK-[0-9]+$",
+      "examples": ["TASK-101", "TASK-201"]
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Name of the analyst agent that created this spec",
+      "examples": ["Agent(Analyste-Paiements)", "Agent(Analyste-Authentification)"]
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain or module this task belongs to",
+      "minLength": 1,
+      "examples": ["Authentification", "Paiements", "Base-de-donnees", "API"]
+    },
+    "title": {
+      "type": "string",
+      "description": "Short, descriptive title of the task",
+      "minLength": 5,
+      "maxLength": 200,
+      "examples": [
+        "Créer l'authentification JWT",
+        "Implémenter le système de paiement Stripe",
+        "Ajouter validation des entrées utilisateur"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what needs to be implemented",
+      "minLength": 10,
+      "examples": [
+        "Implémenter un système d'authentification basé sur JWT. Les tokens doivent expirer après 24h et contenir l'ID utilisateur ainsi que ses rôles. Le système doit supporter le refresh des tokens."
+      ]
+    },
+    "requirements": {
+      "type": "array",
+      "description": "List of specific technical requirements",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 5
+      },
+      "examples": [
+        [
+          "Doit utiliser la librairie 'jsonwebtoken'",
+          "Le secret doit être lu depuis les variables d'environnement (process.env.JWT_SECRET)",
+          "Les tokens doivent avoir une durée de vie de 24 heures",
+          "Doit implémenter un endpoint /auth/refresh pour renouveler les tokens"
+        ]
+      ]
+    },
+    "files_scope": {
+      "type": "array",
+      "description": "List of directories or files that should be modified or created",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "examples": [
+        [
+          "src/api/auth/",
+          "src/middleware/auth.js",
+          "src/config/jwt.js",
+          "tests/auth/"
+        ]
+      ]
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "description": "List of criteria that must be met for the task to be considered complete",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 5
+      },
+      "examples": [
+        [
+          "Un test doit prouver qu'un utilisateur 'admin' reçoit un token valide",
+          "Un test doit prouver qu'une route protégée échoue sans token",
+          "Un test doit prouver qu'un token expiré est rejeté",
+          "Le endpoint /auth/refresh doit fonctionner correctement"
+        ]
+      ]
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "List of other task IDs that must be completed before this task",
+      "items": {
+        "type": "string",
+        "pattern": "^TASK-[0-9]+$"
+      },
+      "uniqueItems": true,
+      "examples": [
+        ["TASK-050", "TASK-075"]
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "description": "Priority level of the task",
+      "enum": ["low", "medium", "high", "critical"],
+      "default": "medium"
+    },
+    "estimated_complexity": {
+      "type": "string",
+      "description": "Estimated complexity of the task",
+      "enum": ["trivial", "simple", "moderate", "complex", "very-complex"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for categorizing the task",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "examples": [
+        ["security", "api", "authentication"]
+      ]
+    },
+    "technical_notes": {
+      "type": "string",
+      "description": "Additional technical notes or constraints"
+    },
+    "related_documentation": {
+      "type": "array",
+      "description": "URLs or paths to relevant documentation",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when the spec was created"
+        },
+        "analyst_version": {
+          "type": "string",
+          "description": "Version of the analyst agent that created this spec"
+        },
+        "spec_version": {
+          "type": "string",
+          "description": "Version of this specification",
+          "default": "1.0"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
