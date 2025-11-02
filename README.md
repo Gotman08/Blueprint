@@ -607,6 +607,8 @@ phase2:
 
 Double validation **parallèle** : logique (spec compliance) ET technique (tests).
 
+> **Note v2.0**: Les agents verifier et tester sont maintenant créés automatiquement lors de l'exécution de Phase 3 s'ils n'existent pas. Ils sont configurés avec un accès en lecture complet au worktree et utilisent le mode `log` (audit) au lieu de `block`.
+
 ### 📥 Input
 
 Tâches avec statut `CODE_DONE`
@@ -1345,6 +1347,10 @@ erDiagram
         string role
         string template
         string status
+        json allow_paths
+        json exclude_paths
+        string access_mode
+        string worktree_path
         datetime created_at
     }
 
@@ -1468,6 +1474,10 @@ CREATE TABLE agents (
     role TEXT,  -- analyst, specialist, verifier, tester
     template TEXT,
     status TEXT,
+    allow_paths TEXT,  -- JSON array of allowed file/directory patterns
+    exclude_paths TEXT,  -- JSON array of excluded file/directory patterns
+    access_mode TEXT,  -- 'block', 'log', 'ask' - access control enforcement mode
+    worktree_path TEXT,  -- Path to agent's worktree for validation context
     created_at TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks(task_id)
 );
@@ -1641,7 +1651,7 @@ phase4:
 - ✅ Repo main toujours propre
 - ✅ Rapport détaillé généré
 
-### 4. Contrôle d'Accès Fichiers
+### 4. Contrôle d'Accès Fichiers (Intégré v2.0)
 
 ```yaml
 security:
@@ -1656,6 +1666,17 @@ security:
       - "**/secrets.json"
       - "**/credentials.json"
 ```
+
+**Nouveauté v2.0**: L'access control est maintenant **stocké en base de données** pour chaque agent créé. Le système merge automatiquement les restrictions depuis:
+1. Le template de l'agent
+2. La spécification de la tâche
+3. Les defaults du pipeline
+4. Les sensitive_paths (toujours exclus)
+
+**Modes d'accès**:
+- `block`: Strict enforcement (utilisé pour analysts et specialists)
+- `log`: Audit only (utilisé pour QA agents)
+- `ask`: Demande validation humaine
 
 ### 5. Retry Loop Sécurisée
 
@@ -1735,6 +1756,18 @@ await db.update_task_status(task_id, "DISPATCHED")
 # Charger le contenu d'un cahier
 cahier_content = await db.load_cahier_content(task_id)
 
+# Créer un agent avec access control (v2.0)
+agent_id = await db.create_agent(
+    agent_id="specialist-TASK-101-abc123",
+    task_id="TASK-101",
+    role="specialist",
+    template_name="senior-engineer",
+    allow_paths=["src/**/*.js", "tests/**/*.test.js"],
+    exclude_paths=[".git/**", "*.db", "**/.env"],
+    access_mode="block",  # 'block', 'log', or 'ask'
+    worktree_path=".worktrees/TASK-101"
+)
+
 # Statistiques
 stats = await db.get_stats()
 ```
@@ -1763,6 +1796,16 @@ enriched = factory.inject_cahier_context(
     cahier_content=cahier_content,
     task_id="TASK-101"
 )
+
+# Obtenir la config d'accès merged (v2.0)
+merged_access = factory.get_merged_access_config(
+    template_name='senior-engineer',
+    spec={'access': {'allow': ['src/**/*.js']}}
+)
+# Returns: {
+#   'allow': ['src/**/*.js'],
+#   'exclude': ['.git/**', '*.db', '**/.env', ...]  # Inclut defaults + sensitive
+# }
 ```
 
 ---
@@ -1813,6 +1856,25 @@ VALIDATION_FAILED → Feedback détaillé → CODE_DONE (retry 1/3)
 Nouvelles colonnes DB :
 - `retry_count` : Nombre de tentatives
 - `last_feedback` : Dernier feedback de validation
+
+### 🔐 Access Control Intégré
+
+**Nouveau**: Access control stocké en base de données
+
+**Avant (v1.x)**: Access control seulement dans les prompts (suggestion)
+**Après (v2.0)**: Access control stocké en DB, trackable, auditable
+
+**Bénéfices**:
+- ✅ Traçabilité complète des restrictions par agent
+- ✅ Merge automatique des configs (template + spec + defaults)
+- ✅ Prêt pour enforcement programmatique futur
+- ✅ Agents QA créés automatiquement avec restrictions appropriées
+
+**Nouvelles colonnes dans `agents`**:
+- `allow_paths` : JSON array des patterns autorisés
+- `exclude_paths` : JSON array des patterns exclus
+- `access_mode` : Mode d'enforcement ('block', 'log', 'ask')
+- `worktree_path` : Chemin du worktree pour validation contexte
 
 ---
 
