@@ -26,6 +26,7 @@
 - [Principe Fondamental](#-principe-fondamental--architecture-générative)
 - [Architecture du Pipeline](#-architecture-du-pipeline)
   - [Phase 0: Master Analyst + Analystes](#phase-0--master-analyst--analystes-cahiers-des-charges)
+  - [Phase 0.5: Enrichissement Gemini](#phase-05--enrichissement-gemini-optionnel)
   - [Phase 1: Dispatcher](#phase-1--dispatcher-création-de-worktrees)
   - [Phase 2: Spécialistes](#phase-2--spécialistes-implémentation-avec-contexte)
   - [Phase 3: QA](#phase-3--qa-validation-parallèle)
@@ -58,13 +59,15 @@
 ```mermaid
 graph LR
     A[💼 Besoin Métier] --> B[📋 Cahiers des Charges]
-    B --> C[🌳 Git Worktrees]
+    B --> B2[🌟 Enrichissement Gemini]
+    B2 --> C[🌳 Git Worktrees]
     C --> D[💻 Code Implémenté]
     D --> E[✅ Validation QA]
     E --> F[🔀 Merge Main]
 
     style A fill:#e1f5ff
     style B fill:#fff9e1
+    style B2 fill:#e6f3ff
     style C fill:#ffe1f5
     style D fill:#e1ffe1
     style E fill:#ffe1e1
@@ -154,12 +157,14 @@ graph TD
 sequenceDiagram
     participant User
     participant Phase0 as Phase 0<br/>Master + Analysts
+    participant Phase05 as Phase 0.5<br/>Gemini Enrichment
     participant Phase1 as Phase 1<br/>Dispatcher
     participant Phase2 as Phase 2<br/>Specialists
     participant Phase3 as Phase 3<br/>QA
     participant Phase4 as Phase 4<br/>Merger
     participant DB as Database
     participant Git as Git Repo
+    participant Gemini as Gemini CLI
 
     User->>Phase0: "Améliorer la sécurité"
     Phase0->>Phase0: Master identifie domaines
@@ -167,13 +172,26 @@ sequenceDiagram
     Phase0->>DB: Enregistre cahiers + tâches
     Phase0-->>User: ✅ 9 tâches créées (CAHIER_READY)
 
+    User->>Phase05: Enrich cahiers (optionnel)
+    Phase05->>DB: Charge cahiers séquentiellement
+    loop Pour chaque cahier
+        Phase05->>Gemini: Good Practices query
+        Gemini-->>Phase05: Résultats
+        Phase05->>Gemini: Modern Approaches query
+        Gemini-->>Phase05: Résultats
+        Phase05->>Gemini: Real-world Context query
+        Gemini-->>Phase05: Résultats
+        Phase05->>DB: Sauvegarde cahier enrichi
+    end
+    Phase05-->>User: ✅ 9 cahiers enrichis
+
     User->>Phase1: Dispatch tasks
     Phase1->>Git: Crée worktrees pour chaque tâche
     Phase1->>DB: Mise à jour statut → DISPATCHED
     Phase1-->>User: ✅ 9 worktrees créés
 
     User->>Phase2: Implement tasks
-    Phase2->>DB: Charge cahiers
+    Phase2->>DB: Charge cahiers enrichis
     Phase2->>Phase2: Crée Specialists (parallèle)
     Phase2->>Git: Commit + push dans worktrees
     Phase2->>DB: Mise à jour statut → CODE_DONE
@@ -286,7 +304,7 @@ graph TD
 2. **Tâches granulaires** : 8 tâches avec statut `CAHIER_READY`
 3. **Métadonnées** : Enregistrées en base de données
 
-### 📝 Exemple de Cahier Généré
+### 📝 Exemple de Cahier des Charges Généré
 
 ```markdown
 # Cahier des Charges - Security Domain
@@ -321,6 +339,7 @@ Les vecteurs d'attaque principaux sont :
 - **Validation** : Joi ou Zod pour schema validation
 
 ### Architecture
+
 ```
 src/security/
 ├── sanitizer.js        # XSS sanitization utilities
@@ -381,6 +400,20 @@ Cette analyse a généré les tâches suivantes :
 - [OWASP XSS Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/XSS_Prevention_Cheat_Sheet.html)
 - [OWASP CSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - [Content Security Policy Guide](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
+
+## 9. Restrictions d'Accès Agent
+
+### Dossiers et Fichiers Autorisés
+- `src/security/**` : Lecture et écriture complète
+- `tests/security/**` : Lecture et écriture complète
+- `docs/security/**` : Lecture et écriture pour documentation
+
+### Dossiers et Fichiers Interdits
+- `.env*` : Fichiers de configuration sensibles
+- `**/.git/**` : Dossier Git
+- `*.db` : Fichiers de base de données
+- `secrets.json` : Fichiers de secrets
+- `config/production/**` : Configuration de production
 ```
 
 ### 🔧 Configuration
@@ -404,6 +437,339 @@ phase0:
     api: "senior-engineer"
     database: "database-expert"
     frontend: "ui-ux-designer"
+```
+
+---
+
+## Phase 0.5 : Enrichissement Gemini (Optionnel)
+
+### 🎯 Objectif
+
+Enrichir séquentiellement les cahiers des charges générés avec des **bonnes pratiques actuelles**, des **approches modernes** et du **contexte du monde réel** via Gemini CLI.
+
+### 📥 Input
+
+Cahiers des charges générés par Phase 0 (statut `CAHIER_READY`)
+
+### ⚙️ Workflow
+
+```mermaid
+graph TD
+    A[(Cahiers<br/>CAHIER_READY)] --> B{Gemini<br/>Enabled?}
+    B -->|Non| Z[Skip Phase 0.5]
+    B -->|Oui| C[Pour chaque cahier<br/>séquentiellement]
+
+    C --> D[Charger cahier]
+    D --> E[Générer prompts enrichissement]
+    E --> F[🔍 Gemini CLI: Good Practices]
+    F --> G[🔍 Gemini CLI: Modern Approaches]
+    G --> H[🔍 Gemini CLI: Real-world Context]
+
+    H --> I[Fusionner résultats]
+    I --> J[Enrichir cahier Markdown]
+    J --> K[Sauvegarder cahier enrichi]
+    K --> L[Mettre à jour hash DB]
+
+    L --> M{Autres cahiers?}
+    M -->|Oui| C
+    M -->|Non| N[(Cahiers Enrichis<br/>CAHIER_READY)]
+
+    Z --> N
+
+    style A fill:#ffcc99
+    style F fill:#99ccff
+    style G fill:#99ccff
+    style H fill:#99ccff
+    style N fill:#99ff99
+```
+
+### 📋 Types d'Enrichissement
+
+#### 1. Good Practices (Bonnes Pratiques)
+- Standards actuels de l'industrie (2025)
+- Patterns reconnus et éprouvés
+- Anti-patterns à éviter
+- Recommandations OWASP, W3C, etc.
+
+**Exemple de requête Gemini** :
+```
+"What are the current best practices for implementing {domain} in 2025?
+Include industry standards, security considerations, and common patterns."
+```
+
+#### 2. Modern Approaches (Approches Modernes)
+- Technologies et frameworks récents
+- Nouvelles architectures et patterns
+- Évolutions depuis les anciennes méthodes
+- Outils et bibliothèques à jour
+
+**Exemple de requête Gemini** :
+```
+"What are the modern approaches and latest technologies for {domain} in 2025?
+Include new frameworks, tools, and architectural patterns."
+```
+
+#### 3. Real-world Context (Contexte du Monde Réel)
+- Comment les professionnels implémentent ces features en production
+- Cas d'usage réels et retours d'expérience
+- Pièges courants et comment les éviter
+- Stack techniques recommandées
+
+**Exemple de requête Gemini** :
+```
+"How do professional teams implement {domain} in production environments?
+Include common pitfalls, real-world considerations, and recommended tech stacks."
+```
+
+### 📄 Exemple de Cahier Enrichi
+
+```markdown
+# Cahier des Charges - Security Domain
+
+**Domaine**: Security
+**Priorité**: high
+**Complexité estimée**: moderate
+**Date**: 2025-01-02
+**Enrichi par Gemini**: ✅ Oui (2025-01-02 15:30:22)
+
+---
+
+## 1. Contexte et Analyse
+
+[Contenu original du cahier...]
+
+---
+
+## 🌟 ENRICHISSEMENT GEMINI
+
+### Good Practices (Bonnes Pratiques 2025)
+
+**Source**: Gemini CLI (gemini-2.5-pro)
+**Date**: 2025-01-02 15:30:22
+
+#### Standards de Sécurité Actuels
+
+##### OWASP Top 10 2025 Compliance
+- **A01:2025 - Broken Access Control** : Implémenter RBAC avec principe du moindre privilège
+- **A02:2025 - Cryptographic Failures** : Utiliser AES-256-GCM, éviter SHA-1
+- **A03:2025 - Injection** : Parameterized queries + input validation stricte
+
+##### Content Security Policy (CSP) Moderne
+```javascript
+// Configuration CSP stricte recommandée en 2025
+const cspPolicy = {
+  'default-src': ["'self'"],
+  'script-src': ["'self'", "'strict-dynamic'"],
+  'style-src': ["'self'", "'unsafe-inline'"],  // Migrer vers nonces
+  'img-src': ["'self'", "data:", "https:"],
+  'connect-src': ["'self'", "https://api.exemple.com"],
+  'upgrade-insecure-requests': []
+};
+```
+
+##### Security Headers Essentiels
+```javascript
+// Middleware Express avec tous les headers 2025
+app.use(helmet({
+  contentSecurityPolicy: cspPolicy,
+  hsts: {
+    maxAge: 63072000,  // 2 ans
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+```
+
+### Modern Approaches (Approches Modernes)
+
+#### 1. Zero Trust Architecture
+Principe fondamental en 2025 : "Never trust, always verify"
+- **Authentification continue** : Re-vérification périodique des credentials
+- **Micro-segmentation** : Permissions granulaires par ressource
+- **Device Trust** : Vérification de l'état de sécurité du device
+
+#### 2. Security as Code
+```yaml
+# security-policy.yaml (Open Policy Agent)
+package security.api
+
+default allow = false
+
+allow {
+  input.method == "GET"
+  input.user.role == "admin"
+  input.path[0] == "api"
+  input.path[1] == "users"
+}
+```
+
+#### 3. Passwordless Authentication
+Tendance 2025 : Éliminer les mots de passe
+- **Passkeys (WebAuthn)** : Standard W3C pour authentification biométrique
+- **Magic Links** : Liens temporaires par email
+- **OAuth 2.0 + PKCE** : Pour applications mobiles
+
+### Real-world Context (Contexte Professionnel)
+
+#### Stack de Sécurité en Production (2025)
+
+```yaml
+Production Security Stack:
+  Authentication:
+    - Primary: Auth0 / Clerk / Supabase Auth
+    - Backup: Self-hosted Keycloak
+    - Avoid: JWT maison (trop de risques)
+
+  Rate Limiting:
+    - Redis + express-rate-limit
+    - CloudFlare Rate Limiting (edge)
+    - Per-user et per-IP limits
+
+  Secrets Management:
+    - HashiCorp Vault (on-premise)
+    - AWS Secrets Manager (cloud)
+    - SOPS pour configs Git
+    - JAMAIS de .env en production
+
+  Monitoring:
+    - Sentry (errors + performance)
+    - Datadog APM (traces)
+    - ELK Stack (logs centralisés)
+
+  WAF & DDoS:
+    - CloudFlare (protection DDoS L7)
+    - AWS WAF (règles custom)
+    - ModSecurity (on-premise)
+```
+
+#### Pièges Courants en Production
+
+⚠️ **Piège #1: "Ça marche en local"**
+- **Problème** : Pas de HTTPS en local, problèmes de CORS en prod
+- **Solution** : Docker + nginx-proxy pour reproduire l'env prod localement
+
+⚠️ **Piège #2: "Logs trop verbeux"**
+- **Problème** : Leak de tokens, passwords, PII dans les logs
+- **Solution** :
+  ```javascript
+  // Middleware de sanitization des logs
+  const sanitizeLogs = (req, res, next) => {
+    const sanitized = { ...req.body };
+    delete sanitized.password;
+    delete sanitized.token;
+    req.sanitizedBody = sanitized;
+    next();
+  };
+  ```
+
+⚠️ **Piège #3: "Dépendances non auditées"**
+- **Problème** : 82% des vulnérabilités viennent des dépendances
+- **Solution** :
+  ```bash
+  # CI/CD Pipeline
+  npm audit --audit-level=moderate
+  snyk test
+  dependabot enable
+  ```
+
+#### Métriques de Sécurité à Tracker
+
+```javascript
+// Métriques essentielles en production
+const securityMetrics = {
+  authFailures: prometheus.counter('auth_failures_total'),
+  suspiciousRequests: prometheus.counter('suspicious_requests_total'),
+  rateLimitHits: prometheus.counter('rate_limit_hits_total'),
+  cspViolations: prometheus.counter('csp_violations_total'),
+  jwtExpired: prometheus.counter('jwt_expired_total')
+};
+```
+
+---
+
+*Enrichissement généré automatiquement par Phase 0.5 - Gemini CLI*
+*Modèle : gemini-2.5-pro | Durée : 45 secondes*
+
+```
+
+### 🔧 Configuration
+
+```yaml
+# Configuration pour Phase 0.5
+phase0_5:
+  enabled: false  # Désactivé par défaut (optionnel)
+
+  # Contrôle de l'enrichissement
+  enrich_all_cahiers: true  # true = tous, false = seulement priority_domains
+  priority_domains:  # Si enrich_all_cahiers: false
+    - "Security"
+    - "Authentication"
+    - "API"
+
+  # Traitement séquentiel (évite rate limits Gemini)
+  sequential_processing: true
+  delay_between_cahiers: 5  # Secondes entre chaque cahier
+
+  # Types d'enrichissement (tous activés par défaut)
+  enrichment_types:
+    good_practices: true      # Bonnes pratiques actuelles
+    modern_approaches: true   # Approches modernes 2025
+    real_world_context: true  # Contexte du monde réel
+
+  # Configuration Gemini CLI
+  gemini_model: "gemini-2.5-pro"  # ou "gemini-2.5-flash" pour plus rapide
+  gemini_timeout: 60  # Timeout plus long pour enrichissement
+
+  # Format de l'enrichissement
+  enrichment_section_title: "🌟 ENRICHISSEMENT GEMINI"
+  add_timestamp: true
+  add_model_info: true
+
+  # Gestion d'erreurs
+  max_retries_per_cahier: 2
+  skip_on_failure: true  # Continue même si un cahier échoue
+
+# Phase 0 : Génération des cahiers
+phase0:
+  # IMPORTANT: Désactiver la recherche inline pour éviter duplication
+  enable_gemini_research: false  # Recherche déplacée en Phase 0.5
+```
+
+### ✅ Avantages de Phase 0.5
+
+| Avantage | Description |
+|----------|-------------|
+| 🎯 **Séparation des responsabilités** | Phase 0 = génération, Phase 0.5 = enrichissement |
+| ⚡ **Optimisation rate limits** | Traitement séquentiel avec délais contrôlés |
+| 🔄 **Flexibilité** | Peut être désactivée ou relancée indépendamment |
+| 📚 **Contexte ultra-riche** | 3 types d'enrichissement complémentaires |
+| 🛡️ **Non-bloquant** | Skip automatique si Gemini indisponible |
+| 📊 **Traçabilité** | Tout est enregistré en base de données |
+
+### 📊 Statistiques d'Enrichissement
+
+La base de données track automatiquement :
+- Nombre de cahiers enrichis vs non-enrichis
+- Temps d'enrichissement par cahier
+- Types d'enrichissement appliqués
+- Taux de succès/échec
+- Modèle Gemini utilisé
+
+```sql
+-- Nouvelle table pour tracking
+CREATE TABLE gemini_enrichment (
+    enrichment_id TEXT PRIMARY KEY,
+    cahier_id TEXT NOT NULL,
+    enrichment_type TEXT NOT NULL,
+    content TEXT,
+    model TEXT,
+    duration_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (cahier_id) REFERENCES cahiers_charges(cahier_id)
+);
 ```
 
 ---
@@ -524,28 +890,35 @@ graph TD
 
 ### 🔬 Injection de Contexte
 
-L'**AgentFactory** enrichit le prompt de base avec le cahier complet :
+Le système Blueprint distingue deux niveaux d'instructions pour les agents :
+
+1. **Instructions de base** : Définies lors de la création de l'agent avec `/agent`, elles représentent son rôle fondamental et ses capacités générales (ex: "Tu es un développeur senior").
+
+2. **Cahiers des charges** : Ce sont des prompts/tâches spécifiques donnés à l'agent, comme on donnerait des spécifications à un humain. Ils incluent le contexte détaillé, les restrictions et les contraintes propres à chaque tâche.
+
+Cette approche simplifie le travail de l'agent et améliore sa compréhension en séparant clairement son rôle général de la tâche spécifique à accomplir.
 
 ```python
-# Template de base (ex: senior-engineer)
+# Template de base (instructions générales de l'agent)
 base_prompt = """
 You are a senior software engineer.
 Implement the following task...
 """
 
-# Cahier chargé depuis DB
+# Cahier des charges (prompt/tâche spécifique)
 cahier_content = db.load_cahier_content(task_id)
 
-# Prompt enrichi
+# Fusion des deux niveaux d'instructions
 enriched_prompt = f"""
 {base_prompt}
 
 ---
 
-## CAHIER DES CHARGES (Specification Document)
+## CAHIER DES CHARGES (Tâche Spécifique)
 
-The following cahier des charges has been created by an analyst agent.
-Follow its recommendations for architecture, technologies, and best practices.
+Le cahier des charges suivant définit votre tâche spécifique.
+Suivez ses recommandations d'architecture, technologies et bonnes pratiques.
+Il contient le contexte, les restrictions et les contraintes pour cette tâche.
 
 {cahier_content}
 
@@ -555,7 +928,7 @@ Follow its recommendations for architecture, technologies, and best practices.
 **Worktree**: .worktrees/{task_id}/
 **Branch**: feature/{task_id}
 
-Begin implementation following the cahier's specifications.
+Commencez l'implémentation en suivant les spécifications du cahier.
 """
 ```
 
@@ -1038,6 +1411,15 @@ python orchestrator/main.py start "Améliorer la sécurité de l'application"
 
 📊 Phase 0 terminée: 8 tâches créées (CAHIER_READY)
 
+=== PHASE 0.5: Enrichissement Gemini (optionnel) ===
+🌟 Enrichissement séquentiel des cahiers...
+🔍 Security: Good Practices → Modern Approaches → Real-world Context
+🔍 Authentication: Good Practices → Modern Approaches → Real-world Context
+🔍 API: Good Practices → Modern Approaches → Real-world Context
+✅ 3 domaines enrichis avec bonnes pratiques 2025
+
+📊 Phase 0.5 terminée: 8 cahiers enrichis
+
 === PHASE 1: Dispatcher ===
 🌳 Création de worktrees pour 8 tâches...
 ✅ TASK-101 → .worktrees/TASK-101 (branch: feature/TASK-101)
@@ -1086,6 +1468,12 @@ python orchestrator/main.py run-phase 0 --requirement "Améliorer la sécurité"
 
 # Vérifier les cahiers générés
 ls cahiers_charges/Security/
+
+# Phase 0.5 : Enrichissement Gemini (optionnel)
+python orchestrator/main.py run-phase 0.5
+
+# Vérifier l'enrichissement
+cat cahiers_charges/Security/TASK-101_cahier.md | grep "ENRICHISSEMENT GEMINI"
 
 # Phase 1 : Création des worktrees
 python orchestrator/main.py run-phase 1
@@ -2266,7 +2654,43 @@ Pour utiliser un autre outil CLI (ex: Claude, GPT-4) :
 
 ---
 
-### Q7 : Quelle est la différence entre "analyst" et "specialist" ?
+### Q7 : Quelle est la différence entre Phase 0 et Phase 0.5 ?
+
+**R** : Les deux phases ont des rôles complémentaires mais distincts :
+
+| Phase 0 | Phase 0.5 |
+|---------|-----------|
+| 🧠 **Génère** les cahiers des charges | 🌟 **Enrichit** les cahiers existants |
+| ⚡ Analyse métier et technique | 📚 Recherche bonnes pratiques 2025 |
+| 🎯 Obligatoire | 🔄 Optionnel (si Gemini activé) |
+| Parallèle (plusieurs analysts) | Séquentiel (évite rate limits) |
+| **Output**: Cahiers bruts | **Output**: Cahiers enrichis |
+
+**Quand utiliser Phase 0.5** :
+- ✅ Vous voulez du contexte réel et moderne dans les cahiers
+- ✅ Gemini CLI est configuré et authentifié
+- ✅ Vous avez besoin de recommandations professionnelles actuelles
+- ✅ Le projet nécessite les meilleures pratiques de l'industrie
+
+**Quand ne PAS utiliser Phase 0.5** :
+- ❌ Vous voulez une génération rapide sans recherche
+- ❌ Gemini n'est pas configuré
+- ❌ Le projet est simple et ne nécessite pas de recherche approfondie
+- ❌ Vous avez des contraintes de temps strictes
+
+**Configuration** :
+```yaml
+phase0_5:
+  enabled: true  # false par défaut
+  enrichment_types:
+    good_practices: true     # Standards actuels
+    modern_approaches: true  # Technologies 2025
+    real_world_context: true # Retours d'expérience
+```
+
+---
+
+### Q8 : Quelle est la différence entre "analyst" et "specialist" ?
 
 | Analyst (Phase 0) | Specialist (Phase 2) |
 |-------------------|---------------------|
@@ -2277,7 +2701,7 @@ Pour utiliser un autre outil CLI (ex: Claude, GPT-4) :
 
 ---
 
-### Q8 : Comment gérer les secrets (API keys) ?
+### Q9 : Comment gérer les secrets (API keys) ?
 
 **R** : ✅ **Variables d'environnement** (recommandé) :
 
@@ -2294,7 +2718,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 
 ---
 
-### Q9 : Puis-je utiliser Blueprint avec d'autres langages que JavaScript/Python ?
+### Q10 : Puis-je utiliser Blueprint avec d'autres langages que JavaScript/Python ?
 
 **R** : ✅ **Oui** ! Blueprint est agnostique du langage. Configurez simplement :
 
@@ -2310,7 +2734,7 @@ phase3:
 
 ---
 
-### Q10 : Combien de temps prend une exécution complète du pipeline ?
+### Q11 : Combien de temps prend une exécution complète du pipeline ?
 
 **R** : Dépend de :
 - Nombre de domaines identifiés
@@ -2414,7 +2838,7 @@ Pour une utilisation commerciale ou en production, contactez l'auteur.
 ## 🙏 Remerciements
 
 - **Anthropic** : Pour Claude et le Claude Code CLI
-- **Google** : Pour Gemini API
+- **Google** : Pour Gemini CLI
 - **La communauté open-source** : Pour les outils et bibliothèques utilisés
 
 ---
