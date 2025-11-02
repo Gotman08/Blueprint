@@ -108,8 +108,8 @@ phase0:
     performance: "performance-optimizer"
 
   # Gemini research (optional)
-  enable_gemini_research: false  # Enable external research via Gemini
-  gemini_model: "gemini-pro"
+  enable_gemini_research: false  # Enable external research via Gemini CLI
+  gemini_model: "gemini-2.5-pro"  # Model to use with Gemini CLI
 
   # Cahiers des charges storage
   cahiers_charges_dir: "cahiers_charges"
@@ -184,10 +184,23 @@ phase4:
   batch_merge_enabled: true  # Merge multiple tasks in one go
   max_batch_size: 5  # Maximum tasks to merge in one batch
 
-# Gemini API Configuration (Optional)
+# Gemini Configuration (Optional - uses Gemini CLI)
 gemini:
-  api_key: ""  # Set via environment variable GEMINI_API_KEY
-  enabled: false
+  # Use Gemini CLI instead of direct API
+  use_cli: true  # Use Gemini CLI (requires npx @google/gemini-cli)
+  enabled: false  # Set to true to enable Gemini research
+
+  # CLI Configuration
+  cli_model: "gemini-2.5-pro"  # Model to use: gemini-2.5-pro or gemini-2.5-flash
+  cli_timeout: 30  # Timeout in seconds for each CLI call
+  cache_results: false  # Cache research results to avoid duplicate queries
+  max_retries: 2  # Number of retries on failure
+
+  # Note: Authentication is handled by Gemini CLI
+  # Setup instructions:
+  # 1. Install: npm install -g @google/gemini-cli (or use npx)
+  # 2. Authenticate: gemini auth login (or set GEMINI_API_KEY env var)
+  # 3. Test: npx @google/gemini-cli "Hello" --output-format json
 
 # Validation settings
 validation:

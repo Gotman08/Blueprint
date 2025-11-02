@@ -131,7 +131,7 @@ graph TD
    - Domain: `API` (Rate Limiting, Authorization)
 
 2. **3 Analyst Agents** sont créés en parallèle, chacun :
-   - Effectue une recherche externe (optionnel via Gemini)
+   - Effectue une recherche externe (optionnel via Gemini CLI)
    - Génère un **cahier des charges** riche en contexte
    - Crée 2-3 tâches granulaires automatiquement
 
@@ -242,9 +242,9 @@ graph TD
     C -->|Domain 2| E[📝 Analyst: Authentication]
     C -->|Domain 3| F[📝 Analyst: API]
 
-    D -->|Optionnel| D1[🔍 Gemini Research]
-    E -->|Optionnel| E1[🔍 Gemini Research]
-    F -->|Optionnel| F1[🔍 Gemini Research]
+    D -->|Optionnel| D1[🔍 Gemini CLI Research]
+    E -->|Optionnel| E1[🔍 Gemini CLI Research]
+    F -->|Optionnel| F1[🔍 Gemini CLI Research]
 
     D1 --> D2[📄 Cahier Security.md]
     E1 --> E2[📄 Cahier Authentication.md]
@@ -328,7 +328,7 @@ src/security/
 └── csrf-middleware.js  # CSRF token management
 ```
 
-## 4. Recherche Externe (Gemini)
+## 4. Recherche Externe (Gemini CLI)
 
 **Query** : "OWASP Top 10 2023 XSS prevention best practices"
 
@@ -337,6 +337,8 @@ src/security/
 - Encoder tous les outputs en fonction du contexte (HTML, JavaScript, CSS)
 - Préférer les frameworks avec auto-escaping (React, Vue)
 - Implémenter Subresource Integrity (SRI) pour les CDN
+
+*Note: Recherche effectuée via Gemini CLI avec un prompt structuré pour obtenir les best practices actuelles.*
 
 ## 5. Tâches Générées
 
@@ -388,9 +390,9 @@ phase0:
   enabled: true
   max_parallel_analysts: 5  # Nombre d'analystes en parallèle
 
-  # Recherche externe optionnelle
+  # Recherche externe optionnelle via Gemini CLI
   enable_gemini_research: false  # Désactivé par défaut
-  gemini_model: "gemini-pro"
+  gemini_model: "gemini-2.5-pro"  # Modèle utilisé par Gemini CLI
 
   # Stockage des cahiers
   cahiers_charges_dir: "cahiers_charges"
@@ -562,7 +564,7 @@ Begin implementation following the cahier's specifications.
 | Élément | Sans Cahier (v1.x) | Avec Cahier (v2.0) |
 |---------|-------------------|-------------------|
 | **Contexte** | Spec JSON simple | Cahier Markdown riche |
-| **Recherche** | Aucune | Gemini optionnel |
+| **Recherche** | Aucune | Gemini CLI optionnel |
 | **Recommandations** | Basiques | Best practices, architecture |
 | **Qualité code** | Moyenne | Élevée (suit les recommandations) |
 
@@ -939,7 +941,44 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Étape 3 : Initialiser la Base de Données
+### Étape 3 : Configuration Gemini CLI (Optionnel)
+
+Pour activer la recherche externe avec Gemini CLI :
+
+**Installation** :
+```bash
+# Option A : Installation globale
+npm install -g @google/gemini-cli
+
+# Option B : Utilisation via npx (sans installation)
+# Vérifier que npx est disponible
+npx --version
+```
+
+**Authentification** :
+```bash
+# Option 1 : OAuth Login (Recommandé)
+gemini auth login  # ou npx @google/gemini-cli auth login
+
+# Option 2 : API Key (Variable d'environnement)
+# Windows
+set GEMINI_API_KEY="votre-clé-api"
+# Linux/Mac
+export GEMINI_API_KEY="votre-clé-api"
+```
+
+**Test** :
+```bash
+# Windows
+npx.cmd @google/gemini-cli "Test" --output-format json
+
+# Linux/Mac
+npx @google/gemini-cli "Test" --output-format json
+```
+
+📚 Voir [`docs/GEMINI_CLI_SETUP.md`](docs/GEMINI_CLI_SETUP.md) pour plus de détails.
+
+### Étape 4 : Initialiser la Base de Données
 
 ```bash
 # Créer pipeline.db et les tables
@@ -953,7 +992,7 @@ python orchestrator/main.py init
 ✅ Pipeline initialized successfully
 ```
 
-### Étape 4 : Vérifier l'Installation
+### Étape 5 : Vérifier l'Installation
 
 ```bash
 # Afficher le statut
@@ -1126,29 +1165,56 @@ phase4:
   create_conflict_report: true
 ```
 
-### Configuration Gemini (Optionnel)
+### Configuration Gemini CLI (Optionnel)
+
+Blueprint utilise Gemini CLI pour enrichir les cahiers des charges avec des recherches externes sur les best practices, la sécurité et la documentation.
+
+**1. Installation de Gemini CLI** :
+
+```bash
+# Option A : Installation globale
+npm install -g @google/gemini-cli
+
+# Option B : Utilisation via npx (sans installation)
+npx @google/gemini-cli --version
+```
+
+**2. Authentification** :
+
+```bash
+# Option 1 : OAuth Login (Recommandé)
+gemini auth login  # ou npx @google/gemini-cli auth login
+
+# Option 2 : API Key (Variable d'environnement)
+export GEMINI_API_KEY="votre-clé-api"
+```
+
+**3. Configuration dans pipeline_config.yaml** :
 
 ```yaml
 gemini:
+  use_cli: true  # Utilise Gemini CLI
   enabled: false  # Mettre à true pour activer
-  api_key: ""  # Ou définir GEMINI_API_KEY env var
+  cli_model: "gemini-2.5-pro"  # ou "gemini-2.5-flash" pour plus rapide
+  cli_timeout: 30  # Timeout en secondes
+  cache_results: false  # Cache optionnel
 
 phase0:
-  enable_gemini_research: true
-  gemini_model: "gemini-pro"
+  enable_gemini_research: true  # Active la recherche pour les analystes
+  gemini_model: "gemini-2.5-pro"
 ```
 
-**Pour activer Gemini** :
+**Test de fonctionnement** :
 
 ```bash
-# Option 1 : Variable d'environnement
-export GEMINI_API_KEY="votre-clé-api"
+# Windows
+npx.cmd @google/gemini-cli "Hello" --output-format json
 
-# Option 2 : Config file (déconseillé pour la sécurité)
-# config/pipeline_config.yaml
-gemini:
-  api_key: "votre-clé-api"  # ⚠️ Ne pas commit cette clé
+# Linux/WSL
+npx @google/gemini-cli "Hello" --output-format json
 ```
+
+📚 **Documentation complète** : Voir [`docs/GEMINI_CLI_SETUP.md`](docs/GEMINI_CLI_SETUP.md)
 
 ### Configuration Avancée
 
@@ -1283,7 +1349,7 @@ Blueprint/
 │   ├── agent_factory.py                # Création agents + injection cahiers
 │   │
 │   ├── 📁 agents/
-│   │   └── gemini_researcher.py        # Recherche externe (Gemini)
+│   │   └── gemini_researcher.py        # Recherche externe via Gemini CLI
 │   │
 │   ├── 📁 phases/
 │   │   ├── phase0_master_analysts.py   # Phase 0: Master + Analystes
@@ -1601,7 +1667,7 @@ cahiers_charges/
 | Avantage | Description |
 |----------|-------------|
 | 📚 **Contexte riche** | Documentation complète du domaine |
-| 🔍 **Recherche externe** | Best practices via Gemini API |
+| 🔍 **Recherche externe** | Best practices via Gemini CLI |
 | 🎯 **Spécialisation** | Chaque specialist reçoit son cahier |
 | 📖 **Documentation** | Cahiers = documentation technique intégrée |
 | 🔄 **Traçabilité** | Stockés en base + fichiers Markdown |
@@ -1945,6 +2011,7 @@ python orchestrator/main.py start "Test complet v2.0"
 | Phase 5 (Merger) | Phase 4 (Merger) | Renumérotation |
 | Auto-résolution conflits | Supprimée | Plus sécurisé |
 | Pas de retry | Retry loop (3x) | Auto-correction |
+| Gemini API | Gemini CLI | Plus flexible, pas de gestion de clés |
 
 **⚠️ IMPORTANT** : Les tâches en cours dans v1.x seront perdues. Terminez-les avant migration.
 
@@ -2169,7 +2236,7 @@ phase2:
 
 ### Q5 : Comment désactiver Gemini Research ?
 
-**R** : Par défaut, c'est désactivé :
+**R** : Par défaut, Gemini CLI est désactivé. La configuration :
 
 ```yaml
 phase0:
@@ -2177,17 +2244,25 @@ phase0:
 
 gemini:
   enabled: false  # Déjà false par défaut
+  use_cli: true  # Utilise Gemini CLI au lieu de l'API
 ```
+
+**Note** : Gemini CLI doit être configuré séparément. Voir [`docs/GEMINI_CLI_SETUP.md`](docs/GEMINI_CLI_SETUP.md) pour l'installation et l'authentification.
 
 ---
 
 ### Q6 : Puis-je utiliser un autre modèle que Gemini pour la recherche ?
 
-**R** : Actuellement, seul Gemini est implémenté. Pour ajouter un autre modèle (ex: Claude, GPT-4) :
+**R** : Gemini CLI supporte plusieurs modèles :
+- `gemini-2.5-pro` : Plus puissant, contexte 1M tokens
+- `gemini-2.5-flash` : Plus rapide pour les requêtes simples
+
+Pour utiliser un autre outil CLI (ex: Claude, GPT-4) :
 
 1. Créer `orchestrator/agents/custom_researcher.py`
 2. Implémenter la même interface que `GeminiResearcher`
-3. Modifier `phase0_master_analysts.py` pour utiliser votre classe
+3. Adapter la méthode `_call_cli()` pour votre outil CLI
+4. Modifier `phase0_master_analysts.py` pour utiliser votre classe
 
 ---
 
