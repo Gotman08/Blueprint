@@ -1,8 +1,8 @@
 """
-Phase 5: Merger Agent
+Phase 4: Merger Agent
 
 The merger agent handles merging validated tasks into the main branch.
-It includes human validation and conflict resolution capabilities.
+It includes human validation and interactive conflict resolution.
 """
 
 import asyncio
@@ -29,7 +29,7 @@ class MergerAgent:
         self.db = db
         self.git = git_helper
 
-        self.phase5_config = config.get('phase5', {})
+        self.phase4_config = config.get('phase4', {})
         self.target_branch = config['git']['base_branch']
 
     async def merge_task(self, task_id: str, skip_validation: bool = False) -> bool:
@@ -93,7 +93,7 @@ class MergerAgent:
             self.logger.success(f"Merged {task_id} successfully")
 
             # Cleanup
-            if self.phase5_config.get('cleanup_after_merge', True):
+            if self.phase4_config.get('cleanup_after_merge', True):
                 await self._cleanup_after_merge(task_id, task['branch_name'])
 
             # Update database
@@ -221,7 +221,7 @@ class MergerAgent:
         return self.logger.confirm("\nProceed with merge?", default=False)
 
 
-async def run_phase5(
+async def run_phase4(
     config: Dict[str, Any],
     logger: PipelineLogger,
     db: Database,
@@ -239,7 +239,7 @@ async def run_phase5(
     Returns:
         Number of tasks merged successfully
     """
-    logger.phase_start("phase5", "Merger - Integration to Main Branch")
+    logger.phase_start("phase4", "Merger - Integration to Main Branch")
 
     merger = MergerAgent(config, logger, db, git_helper)
 
@@ -248,25 +248,25 @@ async def run_phase5(
 
     if not validated_tasks:
         logger.info("No tasks ready for merge")
-        logger.phase_end("phase5", success=True)
+        logger.phase_end("phase4", success=True)
         return 0
 
     logger.info(f"Found {len(validated_tasks)} tasks ready for merge")
 
     # Human validation if required
-    require_validation = config['phase5'].get('require_human_validation', True)
+    require_validation = config['phase4'].get('require_human_validation', True)
 
     if require_validation:
         approved = merger._prompt_human_validation(validated_tasks)
 
         if not approved:
             logger.warning("Merge cancelled by user")
-            logger.phase_end("phase5", success=False)
+            logger.phase_end("phase4", success=False)
             return 0
 
     # Batch merge if enabled
-    batch_enabled = config['phase5'].get('batch_merge_enabled', True)
-    max_batch_size = config['phase5'].get('max_batch_size', 5)
+    batch_enabled = config['phase4'].get('batch_merge_enabled', True)
+    max_batch_size = config['phase4'].get('max_batch_size', 5)
 
     if batch_enabled:
         task_ids = [t['task_id'] for t in validated_tasks[:max_batch_size]]
@@ -279,6 +279,6 @@ async def run_phase5(
                 successful += 1
 
     logger.success(f"Phase 5 complete: {successful}/{len(validated_tasks)} tasks merged")
-    logger.phase_end("phase5", success=True)
+    logger.phase_end("phase4", success=True)
 
     return successful

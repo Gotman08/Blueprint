@@ -66,8 +66,14 @@ class GitHelper:
         branch_name = f"feature/{task_id}"
         worktree_path = self.worktrees_dir / task_id
 
-        # Ensure we're on the base branch and up to date
-        self.repo.git.checkout(base_branch)
+        # Ensure the base branch exists before trying to check it out
+        if base_branch not in self.repo.heads:
+            raise ValueError(
+                f"Base branch '{base_branch}' not found in repository. "
+                "Please ensure the branch exists and the repository has at least one commit."
+            )
+
+        self.repo.git.checkout(base_branch) # Ensure we're on the base branch
 
         # Create worktree with new branch
         try:

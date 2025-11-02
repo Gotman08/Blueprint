@@ -1,5 +1,5 @@
 """
-Phase 4: QA - Verification and Testing
+Phase 3: QA - Verification and Testing
 
 Two types of agents work in parallel for each task:
 1. Verifier: Checks if code matches spec (logic validation)
@@ -95,6 +95,41 @@ class VerifierAgent:
 
             return ValidationStatus.NO_GO, f"Verification error: {e}"
 
+    async def _check_access_violations(self) -> Tuple[bool, str]:
+        """
+        Check for access control violations during task execution.
+
+        Returns:
+            Tuple of (passed, message)
+        """
+        # Check if access control is enabled
+        ac_config = self.config.get('security', {}).get('access_control', {})
+        if not ac_config.get('enabled', False):
+            return True, "Access control not enabled"
+
+        # Get all access violations for this task (denied only)
+        violations = await self.db.get_access_violations_for_task(
+            self.task_id,
+            denied_only=True
+        )
+
+        if not violations:
+            return True, "No access violations detected"
+
+        # Found violations
+        violation_details = []
+        for v in violations:
+            violation_details.append(
+                f"  - {v['operation']} on '{v['file_path']}': {v['reason']}"
+            )
+
+        message = (
+            f"Access control violations detected ({len(violations)} total):\n" +
+            "\n".join(violation_details)
+        )
+
+        return False, message
+
     async def _simulate_verification(self) -> Tuple[bool, str]:
         """Simulate verification"""
         await asyncio.sleep(1)
@@ -102,11 +137,17 @@ class VerifierAgent:
         # Get diff
         diff = self.git.get_diff(self.branch_name)
 
-        # Simulate checking
-        if len(diff) > 0:
-            return True, "Implementation matches specification requirements"
-        else:
+        # Check for changes
+        if len(diff) == 0:
             return False, "No changes detected in diff"
+
+        # Check for access violations
+        access_ok, access_msg = await self._check_access_violations()
+        if not access_ok:
+            return False, f"Access violation: {access_msg}"
+
+        # Simulate checking requirements
+        return True, "Implementation matches specification requirements"
 
 
 class TesterAgent:
@@ -192,7 +233,7 @@ class TesterAgent:
         return True, "All tests passed, linting successful"
 
 
-async def run_phase4(
+async def run_phase3(
     config: Dict[str, Any],
     logger: PipelineLogger,
     db: Database,
@@ -210,14 +251,14 @@ async def run_phase4(
     Returns:
         Number of tasks validated successfully
     """
-    logger.phase_start("phase4", "QA - Verification and Testing")
+    logger.phase_start("phase3", "QA - Verification and Testing")
 
     # Get tasks that have been coded
     coded_tasks = await db.get_tasks_by_status(TaskStatus.CODE_DONE)
 
     if not coded_tasks:
         logger.info("No tasks ready for QA")
-        logger.phase_end("phase4", success=True)
+        logger.phase_end("phase3", success=True)
         return 0
 
     logger.info(f"Found {len(coded_tasks)} tasks ready for QA")

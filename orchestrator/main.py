@@ -3,12 +3,11 @@ Main Pipeline Orchestrator
 
 This is the entry point for the generative agent pipeline.
 It orchestrates all 5 phases:
-- Phase 0: Master Analyst (domain identification)
-- Phase 1: Specialist Analysts (specification generation)
-- Phase 2: Dispatcher (worktree + team creation)
-- Phase 3: Coder Agents (implementation)
-- Phase 4: QA Agents (verification + testing)
-- Phase 5: Merger Agent (integration with validation)
+- Phase 0: Master Analyst + Analysts (domain identification + cahiers des charges generation)
+- Phase 1: Dispatcher (worktree creation)
+- Phase 2: Specialist Agents (implementation with cahier context)
+- Phase 3: QA Agents (verification + testing)
+- Phase 4: Merger Agent (integration with interactive conflict resolution)
 """
 
 import asyncio
@@ -25,12 +24,11 @@ from orchestrator.db import Database
 from orchestrator.utils.git_helper import GitHelper
 from orchestrator.utils.logger import setup_logger, PipelineLogger
 
-from orchestrator.phases.phase0_master import run_phase0
-from orchestrator.phases.phase1_specialists import run_phase1
-from orchestrator.phases.phase2_dispatcher import run_phase2
-from orchestrator.phases.phase3_coder import run_phase3
-from orchestrator.phases.phase4_qa import run_phase4
-from orchestrator.phases.phase5_merger import run_phase5
+from orchestrator.phases.phase0_master_analysts import run_phase0
+from orchestrator.phases.phase1_dispatcher import run_phase1
+from orchestrator.phases.phase2_specialists import run_phase2
+from orchestrator.phases.phase3_qa import run_phase3
+from orchestrator.phases.phase4_merger import run_phase4
 
 
 class Pipeline:
@@ -106,52 +104,44 @@ class Pipeline:
             # Initialize
             await self.initialize()
 
-            # Phase 0: Master Analyst
+            # Phase 0: Master Analyst + Analysts (generates cahiers + tasks)
             if self.config['phase0'].get('enabled', True):
-                domains = await run_phase0(requirement, self.config, self.logger)
-                self.logger.info(f"Identified {len(domains)} domains")
+                cahiers_count = await run_phase0(requirement, self.config, self.logger, self.db)
+                self.logger.info(f"Phase 0: Generated {cahiers_count} cahiers des charges")
             else:
                 self.logger.warning("Phase 0 disabled, skipping")
                 return
 
-            # Phase 1: Specialist Analysts
+            # Phase 1: Dispatcher (creates worktrees)
             if self.config['phase1'].get('enabled', True):
-                specs_count = await run_phase1(domains, self.config, self.logger, self.db)
-                self.logger.info(f"Created {specs_count} specifications")
+                dispatched_count = await run_phase1(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 1: Dispatched {dispatched_count} tasks")
             else:
                 self.logger.warning("Phase 1 disabled, skipping")
                 return
 
-            # Phase 2: Dispatcher
+            # Phase 2: Specialists (implementation with cahier context)
             if self.config['phase2'].get('enabled', True):
-                dispatched = await run_phase2(self.config, self.logger, self.db, self.git)
-                self.logger.info(f"Dispatched {dispatched} tasks")
+                implemented_count = await run_phase2(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 2: Implemented {implemented_count} tasks")
             else:
                 self.logger.warning("Phase 2 disabled, skipping")
                 return
 
-            # Phase 3: Coder Agents
+            # Phase 3: QA (verification + testing)
             if self.config['phase3'].get('enabled', True):
-                coded = await run_phase3(self.config, self.logger, self.db, self.git)
-                self.logger.info(f"Coded {coded} tasks")
+                validated_count = await run_phase3(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 3: Validated {validated_count} tasks")
             else:
                 self.logger.warning("Phase 3 disabled, skipping")
                 return
 
-            # Phase 4: QA Agents
+            # Phase 4: Merger (integration with conflict resolution)
             if self.config['phase4'].get('enabled', True):
-                validated = await run_phase4(self.config, self.logger, self.db, self.git)
-                self.logger.info(f"Validated {validated} tasks")
+                merged_count = await run_phase4(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 4: Merged {merged_count} tasks")
             else:
                 self.logger.warning("Phase 4 disabled, skipping")
-                return
-
-            # Phase 5: Merger Agent
-            if self.config['phase5'].get('enabled', True):
-                merged = await run_phase5(self.config, self.logger, self.db, self.git)
-                self.logger.info(f"Merged {merged} tasks")
-            else:
-                self.logger.warning("Phase 5 disabled, skipping")
                 return
 
             # Display final stats
@@ -171,7 +161,7 @@ class Pipeline:
         Run a specific phase only.
 
         Args:
-            phase: Phase number (0-5)
+            phase: Phase number (0-4)
             **kwargs: Phase-specific arguments
         """
         await self.initialize()
@@ -181,27 +171,27 @@ class Pipeline:
                 requirement = kwargs.get('requirement')
                 if not requirement:
                     raise ValueError("Phase 0 requires 'requirement' argument")
-                await run_phase0(requirement, self.config, self.logger)
+                cahiers_count = await run_phase0(requirement, self.config, self.logger, self.db)
+                self.logger.info(f"Phase 0 complete: {cahiers_count} cahiers generated")
 
             elif phase == "1":
-                from orchestrator.phases.phase0_master import Domain
-                # This would need domains from Phase 0
-                self.logger.error("Phase 1 requires domains from Phase 0")
+                dispatched_count = await run_phase1(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 1 complete: {dispatched_count} tasks dispatched")
 
             elif phase == "2":
-                await run_phase2(self.config, self.logger, self.db, self.git)
+                implemented_count = await run_phase2(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 2 complete: {implemented_count} tasks implemented")
 
             elif phase == "3":
-                await run_phase3(self.config, self.logger, self.db, self.git)
+                validated_count = await run_phase3(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 3 complete: {validated_count} tasks validated")
 
             elif phase == "4":
-                await run_phase4(self.config, self.logger, self.db, self.git)
-
-            elif phase == "5":
-                await run_phase5(self.config, self.logger, self.db, self.git)
+                merged_count = await run_phase4(self.config, self.logger, self.db, self.git)
+                self.logger.info(f"Phase 4 complete: {merged_count} tasks merged")
 
             else:
-                raise ValueError(f"Invalid phase: {phase}")
+                raise ValueError(f"Invalid phase: {phase}. Valid phases are 0-4")
 
         finally:
             await self.cleanup()
@@ -273,15 +263,23 @@ def status(config: str):
 
 
 @cli.command()
-@click.argument('phase', type=click.Choice(['0', '1', '2', '3', '4', '5']))
+@click.argument('phase', type=click.Choice(['0', '1', '2', '3', '4']))
 @click.option('--requirement', help='Business requirement (Phase 0 only)')
 @click.option('--config', default='config/pipeline_config.yaml', help='Configuration file')
 def run_phase(phase: str, requirement: Optional[str], config: str):
     """
     Run a specific phase of the pipeline.
 
+    Phases:
+      0 - Master Analyst + Analysts (generate cahiers des charges)
+      1 - Dispatcher (create worktrees)
+      2 - Specialists (implementation with cahier context)
+      3 - QA (verification + testing)
+      4 - Merger (integration with conflict resolution)
+
     Example:
-        python main.py run-phase 2
+        python main.py run-phase 0 --requirement "Improve application security"
+        python main.py run-phase 1
     """
     pipeline = Pipeline(config)
     asyncio.run(pipeline.run_phase(phase, requirement=requirement))

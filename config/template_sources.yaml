@@ -1,0 +1,273 @@
+# Template Sources Configuration
+# Configuration for agent template sources and management
+
+# Enable/disable template system features
+enabled: true
+
+# GitHub template source configuration
+github:
+  enabled: true
+  repository: "davila7/claude-code-templates"
+  branch: "main"
+  base_path: "cli-tool/components/agents"
+
+  # Timeout for GitHub API requests (seconds)
+  timeout: 30
+
+  # Caching configuration
+  cache:
+    enabled: true
+    directory: "templates/agents"
+    duration_hours: 24
+    auto_update: true
+
+# Local template source configuration
+local:
+  enabled: true
+  wsl_path: "~/.claude/agents"
+  windows_path: null  # Optional: path for Windows users not using WSL
+
+  # Sync local templates to database
+  sync_to_db: true
+
+# Custom template sources (for enterprise/private repositories)
+custom:
+  enabled: false
+  sources: []
+    # Example custom source:
+    # - name: "company-templates"
+    #   type: "github"  # github, git, http
+    #   url: "https://github.com/company/agent-templates"
+    #   branch: "main"
+    #   base_path: "agents"
+    #   auth_required: true
+    #   auth_token_env: "COMPANY_GITHUB_TOKEN"
+
+# Template loading strategy
+loading:
+  # Source priority (first match wins)
+  priority:
+    - "local"      # Try local templates first
+    - "github"     # Then GitHub templates
+    - "custom"     # Finally custom sources
+
+  # Fallback behavior when template not found
+  enable_fallback: true
+
+  # Auto-download missing templates from GitHub
+  auto_download: true
+
+  # Cache downloaded templates locally for offline use
+  cache_downloads: true
+
+# Template discovery and cataloging
+discovery:
+  # Automatically discover and catalog available templates on startup
+  auto_discover: false
+
+  # Refresh catalog interval (hours)
+  refresh_interval_hours: 24
+
+  # Catalog cache file
+  catalog_file: "templates/catalog.json"
+
+  # Include template content in catalog (increases cache size)
+  include_content: false
+
+# Template validation
+validation:
+  # Validate template format on load
+  validate_format: true
+
+  # Required fields in template frontmatter
+  required_fields:
+    - "name"
+    - "description"
+    - "model"
+
+  # Warn on missing optional fields
+  warn_missing_optional: true
+  optional_fields:
+    - "color"
+    - "tools"
+    - "version"
+
+# Template analytics and tracking
+analytics:
+  # Track template usage in database
+  track_usage: true
+
+  # Log template downloads
+  log_downloads: true
+
+  # Collect performance metrics
+  collect_metrics: true
+
+  # Metrics to collect
+  metrics:
+    - "download_count"
+    - "usage_count"
+    - "success_rate"
+    - "avg_duration"
+    - "error_rate"
+
+# Domain-specific template recommendations
+domain_mapping:
+  # Map domains to recommended template categories/templates
+  authentication:
+    category: "security"
+    templates:
+      - "github://security/security-auditor"
+      - "github://security/authentication-specialist"
+
+  blockchain:
+    category: "blockchain-web3"
+    templates:
+      - "github://blockchain-web3/smart-contract-auditor"
+      - "github://blockchain-web3/solidity-expert"
+
+  machine_learning:
+    category: "data-ai"
+    templates:
+      - "github://data-ai/ml-engineer"
+      - "github://data-ai/data-scientist"
+      - "github://ai-specialists/llm-specialist"
+
+  database:
+    category: "database"
+    templates:
+      - "github://database/database-architect"
+      - "github://database/database-optimizer"
+
+  api:
+    category: "api-graphql"
+    templates:
+      - "github://api-graphql/api-architect"
+      - "github://api-graphql/rest-api-specialist"
+      - "github://api-graphql/graphql-specialist"
+
+  frontend:
+    category: "web-tools"
+    templates:
+      - "github://web-tools/react-specialist"
+      - "github://web-tools/nextjs-expert"
+      - "github://development-team/frontend-developer"
+
+  backend:
+    category: "development-team"
+    templates:
+      - "github://development-team/backend-developer"
+      - "github://development-team/senior-developer"
+
+  devops:
+    category: "devops-infrastructure"
+    templates:
+      - "github://devops-infrastructure/devops-engineer"
+      - "github://devops-infrastructure/cloud-architect"
+      - "github://devops-infrastructure/kubernetes-specialist"
+
+  testing:
+    category: "testing"
+    templates:
+      - "github://development-tools/test-engineer"
+      - "github://testing/test-automation-engineer"
+      - "github://performance-testing/performance-tester"
+
+  security:
+    category: "security"
+    templates:
+      - "github://security/security-auditor"
+      - "github://security/penetration-tester"
+      - "github://security/security-compliance-specialist"
+
+  performance:
+    category: "performance-testing"
+    templates:
+      - "github://performance-testing/performance-optimizer"
+      - "github://performance-testing/load-testing-specialist"
+
+# Pre-configured template sets
+template_sets:
+  # Default set for general development
+  default:
+    - "github://development-team/senior-developer"
+    - "github://development-tools/code-reviewer"
+    - "github://development-tools/test-engineer"
+    - "github://security/security-auditor"
+
+  # Full-stack development
+  full_stack:
+    - "github://development-team/frontend-developer"
+    - "github://development-team/backend-developer"
+    - "github://database/database-architect"
+    - "github://api-graphql/api-architect"
+    - "github://development-tools/code-reviewer"
+    - "github://development-tools/test-engineer"
+
+  # Security-focused
+  security:
+    - "github://security/security-auditor"
+    - "github://security/penetration-tester"
+    - "github://security/security-compliance-specialist"
+    - "github://development-tools/code-reviewer"
+
+  # Data/ML focused
+  data_science:
+    - "github://data-ai/data-scientist"
+    - "github://data-ai/ml-engineer"
+    - "github://data-ai/data-engineer"
+    - "github://database/database-architect"
+
+  # DevOps focused
+  devops:
+    - "github://devops-infrastructure/devops-engineer"
+    - "github://devops-infrastructure/cloud-architect"
+    - "github://devops-infrastructure/kubernetes-specialist"
+    - "github://security/security-auditor"
+
+# Template update settings
+updates:
+  # Check for template updates
+  check_updates: true
+
+  # Auto-update templates
+  auto_update: false
+
+  # Update check interval (hours)
+  check_interval_hours: 168  # Weekly
+
+  # Update strategy: "conservative" (manual), "moderate" (prompt), "aggressive" (auto)
+  update_strategy: "moderate"
+
+  # Notify on available updates
+  notify_updates: true
+
+# Error handling
+error_handling:
+  # Retry failed downloads
+  retry_downloads: true
+  max_retries: 3
+  retry_delay_seconds: 5
+
+  # Fallback to local cache on GitHub unavailable
+  use_cache_on_error: true
+
+  # Continue pipeline if template fails to load
+  continue_on_error: false
+
+  # Default template to use if specified template fails
+  default_fallback_template: "senior-engineer"
+
+# Logging
+logging:
+  # Log level for template operations: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+
+  # Log file for template operations
+  file: "logs/templates.log"
+
+  # Log detailed download info
+  log_downloads: true
+
+  # Log template usage
+  log_usage: true

@@ -82,6 +82,43 @@
         ]
       ]
     },
+    "access": {
+      "type": "object",
+      "description": "Access control configuration for this task. Defines which files/directories the agent can access and which are explicitly excluded.",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "description": "List of files, directories, or glob patterns that the agent is allowed to access. Supports patterns like 'src/auth/**/*.js'",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [
+            [
+              "src/auth/",
+              "src/config/jwt.js",
+              "tests/auth/**/*.test.js"
+            ]
+          ]
+        },
+        "exclude": {
+          "type": "array",
+          "description": "List of files, directories, or glob patterns that the agent is explicitly forbidden to access. Exclusions have priority over allows.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [
+            [
+              "src/auth/admin/",
+              "src/config/secrets.js",
+              "**/*.env"
+            ]
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "acceptance_criteria": {
       "type": "array",
       "description": "List of criteria that must be met for the task to be considered complete",
