@@ -498,6 +498,68 @@ Follow its recommendations for architecture, technologies, and best practices.
 Begin implementation following the cahier's specifications.
 """
 
+    def get_merged_access_config(
+        self,
+        template_name: str,
+        spec: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Get merged access control configuration from template + spec + defaults.
+
+        This method combines access control restrictions from multiple sources:
+        1. Agent template (if template has access_control field)
+        2. Task specification (if spec has access field)
+        3. Pipeline defaults (from config)
+        4. Sensitive paths (always excluded)
+
+        Args:
+            template_name: Name of the agent template to load
+            spec: Task specification dictionary (may contain 'access' field)
+
+        Returns:
+            Dictionary with merged access configuration:
+            {
+                'allow': [...],  # Union of all allow patterns
+                'exclude': [...]  # Union of all exclude patterns (including defaults)
+            }
+
+        Example:
+            factory = AgentFactory(config)
+            merged = factory.get_merged_access_config(
+                template_name='senior-engineer',
+                spec={'access': {'allow': ['src/**/*.js']}}
+            )
+            # Returns: {'allow': ['src/**/*.js'], 'exclude': ['.git/**', '*.db', ...]}
+        """
+        from orchestrator.utils.access_control import merge_access_configs
+
+        # Load template
+        template = self.load_template(template_name)
+
+        # Get access configs from sources
+        template_access = template.access_control if template and hasattr(template, 'access_control') else None
+        spec_access = spec.get('access') if spec else None
+
+        # Merge template + spec
+        merged = merge_access_configs(spec_access, template_access)
+
+        # Add default restrictions from pipeline config
+        security_config = self.config.get('security', {})
+        access_control_config = security_config.get('access_control', {})
+        default_restrictions = access_control_config.get('default_restrictions', {})
+
+        if default_restrictions.get('exclude'):
+            current_exclude = merged.get('exclude', [])
+            merged['exclude'] = list(set(current_exclude + default_restrictions['exclude']))
+
+        # Add sensitive paths (always excluded)
+        sensitive_paths = access_control_config.get('sensitive_paths', [])
+        if sensitive_paths:
+            current_exclude = merged.get('exclude', [])
+            merged['exclude'] = list(set(current_exclude + sensitive_paths))
+
+        return merged
+
     def get_template_info(self, template_name: str) -> Dict[str, Any]:
         """
         Get information about a template without loading full content.

@@ -78,11 +78,15 @@ class Database:
             CREATE TABLE IF NOT EXISTS agents (
                 agent_id TEXT PRIMARY KEY,
                 task_id TEXT NOT NULL,
-                role TEXT NOT NULL,  -- 'coder', 'verifier', 'tester'
+                role TEXT NOT NULL,  -- 'coder', 'verifier', 'tester', 'analyst', 'specialist'
                 template_name TEXT NOT NULL,  -- Name from ~/.claude/agents/
                 status TEXT NOT NULL DEFAULT 'created',
                 result TEXT,  -- JSON output from agent
                 error_message TEXT,
+                allow_paths TEXT,  -- JSON array of allowed file/directory patterns
+                exclude_paths TEXT,  -- JSON array of excluded file/directory patterns
+                access_mode TEXT DEFAULT 'block',  -- 'block', 'log', 'ask'
+                worktree_path TEXT,  -- Path to agent's worktree for validation context
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 completed_at TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(task_id)
@@ -189,10 +193,65 @@ class Database:
 
         await self.conn.commit()
 
+        # Run migrations for existing databases
+        await self._migrate_agents_access_control()
+
     async def close(self):
         """Close database connection"""
         if self.conn:
             await self.conn.close()
+
+    async def _migrate_agents_access_control(self) -> None:
+        """
+        Migration: Add access control columns to agents table for existing databases.
+
+        This migration adds:
+        - allow_paths: JSON array of allowed file patterns
+        - exclude_paths: JSON array of excluded file patterns
+        - access_mode: Enforcement mode ('block', 'log', 'ask')
+        - worktree_path: Path to agent's worktree
+
+        Safe to run multiple times (columns will only be added if missing).
+        """
+        try:
+            # Try to add allow_paths column
+            await self.conn.execute("""
+                ALTER TABLE agents ADD COLUMN allow_paths TEXT
+            """)
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            # Column already exists, skip
+            pass
+
+        try:
+            # Try to add exclude_paths column
+            await self.conn.execute("""
+                ALTER TABLE agents ADD COLUMN exclude_paths TEXT
+            """)
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            # Column already exists, skip
+            pass
+
+        try:
+            # Try to add access_mode column
+            await self.conn.execute("""
+                ALTER TABLE agents ADD COLUMN access_mode TEXT DEFAULT 'block'
+            """)
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            # Column already exists, skip
+            pass
+
+        try:
+            # Try to add worktree_path column
+            await self.conn.execute("""
+                ALTER TABLE agents ADD COLUMN worktree_path TEXT
+            """)
+            await self.conn.commit()
+        except aiosqlite.OperationalError:
+            # Column already exists, skip
+            pass
 
     # ========== TASK OPERATIONS ==========
 
@@ -269,13 +328,39 @@ class Database:
         agent_id: str,
         task_id: str,
         role: str,
-        template_name: str
+        template_name: str,
+        allow_paths: Optional[List[str]] = None,
+        exclude_paths: Optional[List[str]] = None,
+        access_mode: str = "block",
+        worktree_path: Optional[str] = None
     ) -> None:
-        """Create a new agent record"""
+        """
+        Create a new agent record with access control configuration.
+
+        Args:
+            agent_id: Unique agent identifier
+            task_id: Associated task ID
+            role: Agent role ('analyst', 'specialist', 'verifier', 'tester')
+            template_name: Name of the agent template
+            allow_paths: Optional list of allowed file/directory patterns (glob format)
+            exclude_paths: Optional list of excluded file/directory patterns (glob format)
+            access_mode: Enforcement mode ('block', 'log', 'ask')
+            worktree_path: Path to agent's worktree for validation context
+        """
+        # Convert lists to JSON for storage
+        allow_json = json.dumps(allow_paths) if allow_paths else None
+        exclude_json = json.dumps(exclude_paths) if exclude_paths else None
+
         await self.conn.execute("""
-            INSERT INTO agents (agent_id, task_id, role, template_name)
-            VALUES (?, ?, ?, ?)
-        """, (agent_id, task_id, role, template_name))
+            INSERT INTO agents (
+                agent_id, task_id, role, template_name,
+                allow_paths, exclude_paths, access_mode, worktree_path
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            agent_id, task_id, role, template_name,
+            allow_json, exclude_json, access_mode, worktree_path
+        ))
 
         await self.conn.commit()
 
@@ -304,6 +389,44 @@ class Database:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+    async def get_agent_access_config(self, agent_id: str) -> Dict[str, Any]:
+        """
+        Get access control configuration for an agent.
+
+        Args:
+            agent_id: Agent ID to retrieve configuration for
+
+        Returns:
+            Dictionary with access control configuration:
+            {
+                'allow': [...],  # List of allowed patterns
+                'exclude': [...],  # List of excluded patterns
+                'mode': 'block',  # Enforcement mode
+                'worktree_path': '/path/to/worktree'
+            }
+
+            Returns empty dict if agent not found.
+        """
+        async with self.conn.execute("""
+            SELECT allow_paths, exclude_paths, access_mode, worktree_path
+            FROM agents WHERE agent_id = ?
+        """, (agent_id,)) as cursor:
+            row = await cursor.fetchone()
+
+        if not row:
+            return {}
+
+        # Parse JSON arrays
+        allow_paths = json.loads(row[0]) if row[0] else []
+        exclude_paths = json.loads(row[1]) if row[1] else []
+
+        return {
+            'allow': allow_paths,
+            'exclude': exclude_paths,
+            'mode': row[2] or 'block',
+            'worktree_path': row[3]
+        }
 
     # ========== VALIDATION OPERATIONS ==========
 

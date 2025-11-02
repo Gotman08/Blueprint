@@ -250,12 +250,19 @@ IMPORTANT: Return ONLY the Markdown cahier des charges, no other text.
         """
         self.logger.info(f"[{self.agent_id}] Starting analysis for domain: {self.domain.name}")
 
-        # Register agent in database
+        # Register agent in database with access control
+        # Analysts have restricted access: only cahiers_charges directory
+        cahiers_dir = self.config.get('phase0', {}).get('cahiers_charges_dir', 'cahiers_charges')
+
         await self.db.create_agent(
             agent_id=self.agent_id,
             task_id=f"DOMAIN-{self.domain.name}",
             role="analyst",
-            template_name=self.domain.analyst_template
+            template_name=self.domain.analyst_template,
+            allow_paths=[f"{cahiers_dir}/**/*"],  # Only access to cahiers directory
+            exclude_paths=[".git/**", ".worktrees/**", "*.db", "**/.env"],  # Standard exclusions
+            access_mode='block',  # Strict enforcement for analysts
+            worktree_path=None  # Analysts don't work in worktrees
         )
         await self.db.update_agent_status(self.agent_id, AgentStatus.WORKING)
 

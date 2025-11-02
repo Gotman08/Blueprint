@@ -8,12 +8,14 @@ Two types of agents work in parallel for each task:
 
 import asyncio
 import json
+import uuid
 from typing import Dict, Any, Tuple
 from pathlib import Path
 
 from orchestrator.db import Database, TaskStatus, AgentStatus, ValidationStatus
 from orchestrator.utils.git_helper import GitHelper
 from orchestrator.utils.logger import PipelineLogger
+from orchestrator.agent_factory import AgentFactory
 
 
 class VerifierAgent:
@@ -265,20 +267,80 @@ async def run_phase3(
 
     successful = 0
 
+    # Create agent factory for QA agent creation
+    factory = AgentFactory(config)
+
     for task in coded_tasks:
         # Load spec
         spec_path = Path(task['spec_path'])
         with open(spec_path) as f:
             spec = json.load(f)
 
-        # Get agents
+        # Get existing agents
         agents = await db.get_agents_for_task(task['task_id'])
         verifier = next((a for a in agents if a['role'] == 'verifier'), None)
         tester = next((a for a in agents if a['role'] == 'tester'), None)
 
-        if not verifier or not tester:
-            logger.error(f"Missing QA agents for {task['task_id']}")
-            continue
+        # Create QA agents if they don't exist
+        if not verifier:
+            verifier_id = f"verifier-{task['task_id']}-{uuid.uuid4().hex[:8]}"
+            verifier_template = config.get('agents', {}).get('role_mapping', {}).get('verifier', 'code-reviewer')
+
+            # Get merged access control config for verifier
+            merged_access = factory.get_merged_access_config(
+                template_name=verifier_template,
+                spec=spec
+            )
+
+            # Verifiers need read access to entire worktree for validation
+            if not merged_access.get('allow'):
+                merged_access['allow'] = ["**/*"]
+
+            access_mode = config.get('security', {}).get('access_control', {}).get('mode', 'log')
+
+            await db.create_agent(
+                agent_id=verifier_id,
+                task_id=task['task_id'],
+                role='verifier',
+                template_name=verifier_template,
+                allow_paths=merged_access.get('allow'),
+                exclude_paths=merged_access.get('exclude'),
+                access_mode=access_mode,  # Use 'log' mode for QA (not strict block)
+                worktree_path=task.get('worktree_path')
+            )
+
+            verifier = {'agent_id': verifier_id, 'role': 'verifier'}
+            logger.info(f"Created verifier agent {verifier_id} for {task['task_id']}")
+
+        if not tester:
+            tester_id = f"tester-{task['task_id']}-{uuid.uuid4().hex[:8]}"
+            tester_template = config.get('agents', {}).get('role_mapping', {}).get('tester', 'test-engineer')
+
+            # Get merged access control config for tester
+            merged_access = factory.get_merged_access_config(
+                template_name=tester_template,
+                spec=spec
+            )
+
+            # Testers need read access to entire worktree for running tests
+            if not merged_access.get('allow'):
+                merged_access['allow'] = ["**/*"]
+
+            access_mode = config.get('security', {}).get('access_control', {}).get('mode', 'log')
+
+            await db.create_agent(
+                agent_id=tester_id,
+                task_id=task['task_id'],
+                role='tester',
+                template_name=tester_template,
+                allow_paths=merged_access.get('allow'),
+                exclude_paths=merged_access.get('exclude'),
+                access_mode=access_mode,  # Use 'log' mode for QA (not strict block)
+                worktree_path=task.get('worktree_path')
+            )
+
+            tester = {'agent_id': tester_id, 'role': 'tester'}
+            logger.info(f"Created tester agent {tester_id} for {task['task_id']}")
 
         # Create agent instances
         verifier_agent = VerifierAgent(

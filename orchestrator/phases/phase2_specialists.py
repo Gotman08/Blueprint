@@ -11,6 +11,7 @@ Key difference from old Phase 3 (Coder):
 
 import asyncio
 import json
+import os
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
@@ -333,12 +334,35 @@ async def run_phase2(
                 agent_factory=factory
             )
 
-            # Create agent in DB
+            # Load spec to get access config
+            import json
+            spec = {}
+            if task.get('spec_path') and os.path.exists(task['spec_path']):
+                with open(task['spec_path'], 'r') as f:
+                    spec = json.load(f)
+
+            # Get template name
+            specialist_template = config.get('phase2', {}).get('specialist_template', 'senior-engineer')
+
+            # Get merged access control config (template + spec + defaults)
+            merged_access = factory.get_merged_access_config(
+                template_name=specialist_template,
+                spec=spec
+            )
+
+            # Get access mode from config
+            access_mode = config.get('security', {}).get('access_control', {}).get('mode', 'block')
+
+            # Create agent in DB with access control
             await db.create_agent(
                 agent_id=agent_id,
                 task_id=task['task_id'],
                 role='specialist',
-                template_name=config.get('phase2', {}).get('specialist_template', 'senior-engineer')
+                template_name=specialist_template,
+                allow_paths=merged_access.get('allow'),
+                exclude_paths=merged_access.get('exclude'),
+                access_mode=access_mode,
+                worktree_path=task.get('worktree_path')
             )
 
             # Run implementation
