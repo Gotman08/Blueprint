@@ -4,9 +4,14 @@
 # General settings
 general:
   project_name: "Generative Agent Pipeline"
-  version: "1.0.0"
+  version: "2.0.0"
   log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
   log_file: "logs/pipeline.log"
+
+  # Default target project path (optional)
+  # If not specified, must be provided via --project CLI option
+  # Example: /path/to/my-app or ~/projects/my-app
+  default_target_project: null
 
 # Database settings
 database:
@@ -16,7 +21,7 @@ database:
 
 # Git settings
 git:
-  base_branch: "main"
+  base_branch: "master"
   worktrees_dir: ".worktrees"
   auto_cleanup: true
   merge_strategy: "recursive"  # recursive, ours, theirs
@@ -113,6 +118,28 @@ phase0:
 
   # Cahiers des charges storage
   cahiers_charges_dir: "cahiers_charges"
+
+# Phase 0.5: Gemini Enrichment (Cahiers des Charges Enhancement)
+phase0_5:
+  enabled: false
+  enrich_all_cahiers: true
+
+  # Types of enrichment to apply
+  enrichment_types:
+    good_practices: true
+    modern_approaches: true
+    real_world_context: true
+
+  # Model settings for enrichment
+  model: "gemini-2.5-pro"
+  max_parallel_enrichments: 3
+
+  # Storage for enriched cahiers
+  enriched_cahiers_dir: "cahiers_charges/enriched"
+
+  # Timeout settings
+  timeout_seconds: 120
+  max_retries: 2
 
 # Phase 1: Dispatcher (Create Worktrees)
 phase1:

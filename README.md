@@ -33,6 +33,8 @@
   - [Phase 4: Merger](#phase-4--merger-intégration-sécurisée)
 - [Installation](#-installation)
 - [Guide de Démarrage Rapide](#-guide-de-démarrage-rapide)
+- [Travailler avec des Projets Externes](#-travailler-avec-des-projets-externes)
+- [Nettoyage et Maintenance](#-nettoyage-et-maintenance)
 - [Configuration](#-configuration)
 - [Exemples d'Utilisation](#-exemples-dutilisation)
 - [Structure du Projet](#-structure-du-projet)
@@ -83,6 +85,20 @@ graph LR
 | 🔴 Développement séquentiel lent | ✅ Parallélisation massive avec Git worktrees |
 | 🔴 Conflits de code entre agents | ✅ Isolation complète + détection automatique |
 | 🔴 Validation manuelle chronophage | ✅ Double validation automatique (logique + technique) |
+
+### 🎯 Blueprint comme Orchestrateur
+
+**Blueprint** fonctionne comme un **orchestrateur externe** qui peut travailler sur n'importe quel projet Git :
+
+| Répertoire | Rôle | Contenu |
+|------------|------|---------|
+| **Blueprint/** | 🎼 Orchestrateur | Base de données, cahiers des charges, configuration, logs |
+| **Votre Projet/** | 🎯 Cible | Code source, worktrees, branches de features |
+
+**Séparation des responsabilités** :
+- ✅ Blueprint reste propre et réutilisable
+- ✅ Votre projet reçoit uniquement le code généré
+- ✅ Pas de pollution : cahiers des charges dans Blueprint, code dans votre projet
 
 ---
 
@@ -1389,23 +1405,60 @@ Agents created: 0
 
 ## 🚀 Guide de Démarrage Rapide
 
-### Exemple Complet : "Améliorer la Sécurité"
+### Prérequis
 
-#### 1️⃣ Lancer le Pipeline Complet
+Avant de commencer, assurez-vous que :
+1. Blueprint est installé dans son propre répertoire
+2. Votre projet cible est un dépôt Git initialisé
+3. Vous connaissez le chemin vers votre projet cible
+
+### Exemple Complet : "Améliorer la Sécurité" sur un Projet Externe
+
+#### 1️⃣ Lancer le Pipeline Complet sur un Projet Externe
 
 ```bash
+# Option 1: Avec le paramètre --project
+python orchestrator/main.py start "Améliorer la sécurité de l'application" --project /path/to/mon-projet
+
+# Option 2: Configurer un projet par défaut (pipeline_config.yaml)
+# general:
+#   default_target_project: /path/to/mon-projet
 python orchestrator/main.py start "Améliorer la sécurité de l'application"
+
+# Option 3: Travailler sur Blueprint lui-même (développement)
+python orchestrator/main.py start "Améliorer la sécurité" --project .
 ```
 
 **Ce qui se passe** :
 
 ```
+[Blueprint Directory]
+📁 Blueprint/
+├── 📄 pipeline.db                    # État du pipeline
+├── 📁 cahiers_charges/               # Cahiers générés
+│   ├── Security/
+│   │   ├── TASK-101_cahier.md
+│   │   └── TASK-102_cahier.md
+│   └── Authentication/
+│       └── TASK-201_cahier.md
+└── 📁 logs/                          # Logs d'orchestration
+
+[Votre Projet]
+📁 /path/to/mon-projet/
+├── 📁 .worktrees/                    # Worktrees créés ici
+│   ├── TASK-101/                     # Code isolé par tâche
+│   ├── TASK-102/
+│   └── TASK-201/
+├── 📁 src/                           # Votre code source
+└── .git/                             # Git repository
+
 === PHASE 0: Master Analyst + Analystes ===
 🧑‍💼 Master Analyst analyse la requête...
 ✅ Domaines identifiés: Security, Authentication, API
 
 📝 Création de 3 analystes en parallèle...
 ✅ Analyst(Security) → Cahier créé → 3 tâches générées
+   └── Cahier sauvegardé dans: Blueprint/cahiers_charges/Security/
 ✅ Analyst(Authentication) → Cahier créé → 2 tâches générées
 ✅ Analyst(API) → Cahier créé → 3 tâches générées
 
@@ -1421,9 +1474,9 @@ python orchestrator/main.py start "Améliorer la sécurité de l'application"
 📊 Phase 0.5 terminée: 8 cahiers enrichis
 
 === PHASE 1: Dispatcher ===
-🌳 Création de worktrees pour 8 tâches...
-✅ TASK-101 → .worktrees/TASK-101 (branch: feature/TASK-101)
-✅ TASK-102 → .worktrees/TASK-102 (branch: feature/TASK-102)
+🌳 Création de worktrees pour 8 tâches dans /path/to/mon-projet/.worktrees/
+✅ TASK-101 → /path/to/mon-projet/.worktrees/TASK-101 (branch: feature/TASK-101)
+✅ TASK-102 → /path/to/mon-projet/.worktrees/TASK-102 (branch: feature/TASK-102)
 ...
 
 📊 Phase 1 terminée: 8 tâches dispatched
@@ -1463,32 +1516,426 @@ python orchestrator/main.py start "Améliorer la sécurité de l'application"
 #### 2️⃣ Ou Lancer Phase par Phase
 
 ```bash
-# Phase 0 : Génération des cahiers
-python orchestrator/main.py run-phase 0 --requirement "Améliorer la sécurité"
+# Toutes les commandes supportent --project
+# Phase 0 : Génération des cahiers (dans Blueprint/)
+python orchestrator/main.py run-phase 0 --requirement "Améliorer la sécurité" --project /path/to/mon-projet
 
-# Vérifier les cahiers générés
+# Vérifier les cahiers générés (dans Blueprint/)
 ls cahiers_charges/Security/
 
 # Phase 0.5 : Enrichissement Gemini (optionnel)
-python orchestrator/main.py run-phase 0.5
+python orchestrator/main.py run-phase 0.5 --project /path/to/mon-projet
 
 # Vérifier l'enrichissement
 cat cahiers_charges/Security/TASK-101_cahier.md | grep "ENRICHISSEMENT GEMINI"
 
-# Phase 1 : Création des worktrees
-python orchestrator/main.py run-phase 1
+# Phase 1 : Création des worktrees (dans le projet cible)
+python orchestrator/main.py run-phase 1 --project /path/to/mon-projet
 
-# Vérifier les worktrees
-git worktree list
+# Vérifier les worktrees (dans le projet cible)
+cd /path/to/mon-projet && git worktree list
 
 # Phase 2 : Implémentation
-python orchestrator/main.py run-phase 2
+python orchestrator/main.py run-phase 2 --project /path/to/mon-projet
 
 # Phase 3 : Validation
-python orchestrator/main.py run-phase 3
+python orchestrator/main.py run-phase 3 --project /path/to/mon-projet
 
 # Phase 4 : Merge
-python orchestrator/main.py run-phase 4
+python orchestrator/main.py run-phase 4 --project /path/to/mon-projet
+```
+
+---
+
+## 🎯 Travailler avec des Projets Externes
+
+### Concepts Clés
+
+Blueprint fonctionne comme un **orchestrateur externe** qui peut gérer le développement de n'importe quel projet Git, sans modifier son propre code source.
+
+#### Architecture de Séparation
+
+```mermaid
+graph LR
+    A[📁 Blueprint Directory] -->|Orchestration| B[📁 Target Project]
+
+    subgraph Blueprint
+        A1[pipeline.db<br/>État & Tasks]
+        A2[cahiers_charges/<br/>Documentation]
+        A3[logs/<br/>Historique]
+    end
+
+    subgraph "Target Project"
+        B1[.worktrees/<br/>Code isolé]
+        B2[src/<br/>Code source]
+        B3[main branch<br/>Code intégré]
+    end
+
+    style Blueprint fill:#fff9e1
+    style "Target Project" fill:#e1ffe1
+```
+
+**Avantages de cette architecture** :
+- ✅ **Réutilisabilité** : Un Blueprint pour plusieurs projets
+- ✅ **Propreté** : Pas de pollution entre orchestrateur et code
+- ✅ **Traçabilité** : Cahiers des charges centralisés pour audit
+- ✅ **Sécurité** : Le code source n'est jamais dans Blueprint
+
+### Configuration du Projet Cible
+
+#### Option 1 : Paramètre CLI (Recommandé pour tests)
+
+```bash
+# Toujours spécifier --project pour chaque commande
+python orchestrator/main.py start "requirement" --project /path/to/my-app
+python orchestrator/main.py run-phase 1 --project /path/to/my-app
+python orchestrator/main.py status --project /path/to/my-app
+python orchestrator/main.py cleanup --project /path/to/my-app
+```
+
+**Avantages** :
+- Flexible : change facilement de projet
+- Explicite : toujours clair sur quel projet vous travaillez
+- Sécurisé : pas de risque de modifier le mauvais projet
+
+#### Option 2 : Configuration par Défaut (Recommandé pour production)
+
+**Éditer `config/pipeline_config.yaml`** :
+
+```yaml
+general:
+  project_name: "Generative Agent Pipeline"
+  version: "2.0.0"
+
+  # Projet cible par défaut
+  default_target_project: "/path/to/my-app"  # Chemin absolu ou relatif
+  # Exemples :
+  # default_target_project: "/home/user/projects/my-app"
+  # default_target_project: "~/projects/my-app"
+  # default_target_project: "../my-app"
+```
+
+**Utilisation** :
+
+```bash
+# Plus besoin de --project si default_target_project est configuré
+python orchestrator/main.py start "requirement"
+python orchestrator/main.py status
+```
+
+**⚠️ Note** : Le paramètre `--project` a toujours la priorité sur `default_target_project`.
+
+### Où Vont les Fichiers ?
+
+| Fichier/Répertoire | Emplacement | Raison |
+|-------------------|-------------|---------|
+| `pipeline.db` | **Blueprint/** | État centralisé du pipeline |
+| `cahiers_charges/` | **Blueprint/** | Documentation de planification |
+| `logs/` | **Blueprint/** | Logs d'orchestration |
+| `.worktrees/` | **Projet cible/** | Isolation du code par tâche |
+| `feature/*` branches | **Projet cible/** | Branches de développement |
+| Code mergé | **Projet cible/main** | Code production final |
+
+### Exemples Complets
+
+#### Exemple 1 : Plusieurs Projets en Parallèle
+
+```bash
+# Projet A : Application Web
+python orchestrator/main.py start "Add user authentication" --project ~/projects/web-app
+
+# Pendant que le pipeline tourne, lancer sur un autre projet
+# Projet B : API Backend
+python orchestrator/main.py start "Implement caching layer" --project ~/projects/api-backend
+
+# Les deux pipelines sont indépendants :
+# - Même pipeline.db mais tasks différentes (task_id uniques)
+# - Cahiers dans des domaines différents
+# - Code dans des projets différents
+```
+
+#### Exemple 2 : Workflow Développeur
+
+```bash
+# 1. Initialiser Blueprint pour un nouveau projet
+cd ~/Blueprint
+python orchestrator/main.py init --project ~/my-new-app
+
+# 2. Planifier la feature (Phase 0 seulement)
+python orchestrator/main.py run-phase 0 \
+  --requirement "Build REST API for user management" \
+  --project ~/my-new-app
+
+# 3. Vérifier les cahiers générés (dans Blueprint)
+ls cahiers_charges/
+cat cahiers_charges/API/TASK-101_cahier.md
+
+# 4. Si satisfait, lancer l'implémentation
+python orchestrator/main.py run-phase 1 --project ~/my-new-app
+python orchestrator/main.py run-phase 2 --project ~/my-new-app
+
+# 5. Le code est dans ~/my-new-app/.worktrees/
+cd ~/my-new-app
+git worktree list
+
+# 6. Valider et merger
+cd ~/Blueprint
+python orchestrator/main.py run-phase 3 --project ~/my-new-app
+python orchestrator/main.py run-phase 4 --project ~/my-new-app
+```
+
+#### Exemple 3 : Développement Blueprint Lui-Même
+
+```bash
+# Pour améliorer Blueprint, pointer vers lui-même
+cd ~/Blueprint
+python orchestrator/main.py start "Add new feature to Blueprint" --project .
+
+# Ou en absolu
+python orchestrator/main.py start "Add new feature" --project /home/user/Blueprint
+```
+
+### Prérequis du Projet Cible
+
+Le projet cible **doit** :
+1. ✅ Être un dépôt Git initialisé (`git init`)
+2. ✅ Avoir au moins un commit initial
+3. ✅ Avoir une branche `main` ou `master`
+4. ✅ Être accessible en lecture/écriture
+
+Le projet cible **n'a pas besoin** de :
+- ❌ Contenir du code (peut être vide)
+- ❌ Avoir une structure spécifique
+- ❌ Être dans le même langage de programmation
+
+### Vérification
+
+Pour vérifier que votre projet cible est prêt :
+
+```bash
+cd /path/to/mon-projet
+
+# Vérifier que c'est un repo Git
+git status
+
+# Vérifier la branche principale
+git branch
+
+# Vérifier qu'il y a au moins un commit
+git log -1
+
+# Si tout est OK, lancer Blueprint
+cd ~/Blueprint
+python orchestrator/main.py start "requirement" --project /path/to/mon-projet
+```
+
+---
+
+## 🧹 Nettoyage et Maintenance
+
+### Pourquoi Nettoyer ?
+
+Lorsqu'un pipeline échoue ou est interrompu, des ressources temporaires peuvent rester :
+- 📄 **Cahiers des charges** orphelins (dans Blueprint/)
+- 🌳 **Worktrees** vides ou incomplets (dans le projet cible)
+- 🗄️ **Entrées de base de données** pour des tâches non finalisées
+
+Blueprint fournit un système de nettoyage intelligent qui **distingue** :
+- **Documents de planification** (cahiers) → toujours nettoyables
+- **Code réel** (worktrees avec commits) → protégé par défaut
+
+### Commande `cleanup`
+
+```bash
+python orchestrator/main.py cleanup --project /path/to/mon-projet [OPTIONS]
+```
+
+#### Options
+
+| Option | Description | Comportement |
+|--------|-------------|--------------|
+| `--dry-run` | Mode simulation | Affiche ce qui serait nettoyé sans rien supprimer |
+| `--force` | Nettoyage forcé | Supprime TOUT y compris le code (dangereux !) |
+| *(aucune)* | Mode par défaut | Nettoie seulement les ressources orphelines |
+
+### Modes de Nettoyage
+
+#### Mode 1 : Nettoyage Standard (Sécurisé)
+
+**Sans option, nettoyage intelligent des ressources orphelines** :
+
+```bash
+python orchestrator/main.py cleanup --project /path/to/mon-projet
+```
+
+**Ce qui est nettoyé** :
+- ✅ Cahiers des charges (tous, toujours dans Blueprint/)
+- ✅ Worktrees **vides** (aucun commit = pas de code)
+- ✅ Index des cahiers (`cahiers_charges/index.json`)
+- ❌ Worktrees avec code (protégés !)
+- ❌ Base de données (conservée pour historique)
+
+**Exemple de sortie** :
+
+```
+=== CLEANUP - Orphaned Resources ===
+Found 3 cahier domains to clean
+Found 2 worktrees to clean
+
+Proceed with cleanup? [Y/n]: y
+
+✅ Removed cahier domain: Security
+✅ Removed cahier domain: API
+✅ Removed cahier domain: Authentication
+✅ Removed empty worktree: TASK-101 (0 commits)
+✅ Removed empty worktree: TASK-105 (0 commits)
+⚠️  Kept worktree: TASK-102 (has 3 commits)
+⚠️  Kept worktree: TASK-103 (has 1 commit)
+
+Cleanup complete!
+```
+
+#### Mode 2 : Dry-Run (Aperçu)
+
+**Voir ce qui serait nettoyé sans rien supprimer** :
+
+```bash
+python orchestrator/main.py cleanup --project /path/to/mon-projet --dry-run
+```
+
+**Utilité** :
+- ✅ Vérifier ce qui sera supprimé avant confirmation
+- ✅ Détecter des worktrees oubliés
+- ✅ Auditer les ressources orphelines
+
+**Exemple de sortie** :
+
+```
+=== CLEANUP - Orphaned Resources ===
+⚠️  DRY RUN MODE - No changes will be made
+
+Found 3 cahier domains to clean:
+  - cahiers_charges/Security/
+  - cahiers_charges/API/
+  - cahiers_charges/Authentication/
+
+Found 2 worktrees to clean:
+  - .worktrees/TASK-101 (empty, 0 commits)
+  - .worktrees/TASK-105 (empty, 0 commits)
+
+Worktrees to keep (have commits):
+  - .worktrees/TASK-102 (3 commits)
+  - .worktrees/TASK-103 (1 commit)
+
+No changes made (dry-run mode)
+```
+
+#### Mode 3 : Force (Dangereux ⚠️)
+
+**Nettoyer TOUT y compris le code généré** :
+
+```bash
+python orchestrator/main.py cleanup --project /path/to/mon-projet --force
+```
+
+**⚠️ ATTENTION** : Ce mode supprime **TOUT**, même les worktrees avec du code !
+
+**Ce qui est nettoyé** :
+- ✅ Tous les cahiers des charges
+- ✅ **TOUS** les worktrees (même avec commits)
+- ✅ Entrées de base de données pour tâches non mergées
+- ✅ Index des cahiers
+
+**Cas d'usage recommandés** :
+- 🔴 Pipeline échoué en Phase 0 ou 1 (aucun code généré)
+- 🔴 Reset complet pour recommencer
+- 🔴 Nettoyage après tests
+
+### Cleanup Automatique
+
+Blueprint inclut aussi un **cleanup automatique** en cas d'échec :
+
+#### Cleanup Phase-Aware
+
+Le pipeline détecte automatiquement quelle phase a échoué et adapte le nettoyage :
+
+```python
+# Intégré dans Pipeline.cleanup()
+
+# Si échec en Phase 0, 0.5, ou 1 → cleanup complet (aucun code)
+if failed_phase in ['phase0', 'phase0_5', 'phase1']:
+    await self._cleanup_all_temp_files()  # Supprime tout
+
+# Si échec en Phase 2, 3, ou 4 → cleanup cahiers seulement (protéger code)
+else:
+    await self._cleanup_cahiers_only()  # Garde le code
+```
+
+**Exemple de nettoyage automatique** :
+
+```bash
+python orchestrator/main.py start "requirement" --project /path/to/mon-projet
+
+# [Pipeline s'exécute...]
+# [Erreur en Phase 0]
+
+❌ Phase 0 failed: Master analyst error
+🧹 Auto-cleanup: Removing planning documents and empty worktrees
+✅ Cleanup complete (no code was generated)
+```
+
+### Commande `reset`
+
+**Réinitialiser complètement la base de données** :
+
+```bash
+python orchestrator/main.py reset
+```
+
+**⚠️ ATTENTION** : Supprime `pipeline.db` et tout l'historique !
+
+**Ce qui est supprimé** :
+- ✅ Base de données (`pipeline.db`)
+- ✅ Tout l'historique des tâches
+- ✅ Toutes les traces d'agents
+
+**Ce qui est conservé** :
+- ❌ Cahiers des charges (dans Blueprint/)
+- ❌ Worktrees (dans le projet cible)
+- ❌ Branches git (dans le projet cible)
+
+### Exemples Pratiques
+
+#### Exemple 1 : Pipeline Interrompu (Ctrl+C en Phase 2)
+
+```bash
+# 1. Vérifier l'état
+python orchestrator/main.py status --project /path/to/mon-projet
+# Output: 3 tasks SPECIALIST_WORKING, 2 tasks CODE_DONE
+
+# 2. Aperçu du nettoyage
+python orchestrator/main.py cleanup --project /path/to/mon-projet --dry-run
+
+# 3. Nettoyer (protège le code)
+python orchestrator/main.py cleanup --project /path/to/mon-projet
+# Output: Cahiers supprimés, worktrees vides supprimés, code conservé
+
+# 4. Reprendre si besoin
+python orchestrator/main.py run-phase 2 --project /path/to/mon-projet
+```
+
+#### Exemple 2 : Échec en Phase 0 (Aucun Code Généré)
+
+```bash
+# 1. Échec détecté
+❌ Phase 0 failed: Invalid requirement
+
+# 2. Nettoyage total (sans risque)
+python orchestrator/main.py cleanup --project /path/to/mon-projet --force
+# Output: Tout nettoyé (aucun code n'existait)
+
+# 3. Recommencer
+python orchestrator/main.py start "corrected requirement" --project /path/to/mon-projet
 ```
 
 ---
@@ -1505,6 +1952,15 @@ general:
   project_name: "Generative Agent Pipeline"
   log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
   log_file: "logs/pipeline.log"
+
+  # Projet cible par défaut (optionnel)
+  # Si non spécifié, doit être fourni via --project CLI option
+  default_target_project: null  # ou /path/to/votre-projet
+  # Exemples :
+  # default_target_project: "/home/user/projects/my-app"
+  # default_target_project: "~/projects/my-app"
+  # default_target_project: "../my-app"
+  # default_target_project: "."  # Pour travailler sur Blueprint lui-même
 
 # Base de données
 database:
@@ -2163,21 +2619,32 @@ security:
 ### CLI Commands
 
 ```bash
-# Initialiser le pipeline
-python orchestrator/main.py init
+# Initialiser le pipeline pour un projet
+python orchestrator/main.py init --project /path/to/mon-projet
 
 # Lancer le pipeline complet
-python orchestrator/main.py start "<requirement>"
+python orchestrator/main.py start "<requirement>" --project /path/to/mon-projet
 
 # Lancer une phase spécifique
-python orchestrator/main.py run-phase <0-4> [--requirement "<req>"]
+python orchestrator/main.py run-phase <0-4> [--requirement "<req>"] --project /path/to/mon-projet
 
 # Afficher le statut
-python orchestrator/main.py status
+python orchestrator/main.py status --project /path/to/mon-projet
 
-# Réinitialiser (supprimer la DB)
+# Nettoyer les ressources orphelines
+python orchestrator/main.py cleanup --project /path/to/mon-projet [--force] [--dry-run]
+
+# Réinitialiser la base de données
 python orchestrator/main.py reset
 ```
+
+**Options globales** :
+- `--project PATH` : Chemin vers le projet cible à travailler (requis sauf si `default_target_project` configuré)
+- `--config PATH` : Chemin vers le fichier de configuration (défaut: `config/pipeline_config.yaml`)
+
+**Commande `cleanup` options** :
+- `--force` : Force le nettoyage de TOUT, y compris le code généré (dangereux)
+- `--dry-run` : Affiche ce qui serait nettoyé sans rien supprimer (aperçu)
 
 ### Database API
 
@@ -2314,6 +2781,91 @@ Nouvelles colonnes DB :
 ### 🔐 Access Control Intégré
 
 **Nouveau**: Access control stocké en base de données
+
+### 🎯 Blueprint comme Orchestrateur Externe
+
+**Nouveau**: Blueprint peut maintenant travailler sur des projets externes au lieu de se modifier lui-même
+
+**Avant (< v2.0)**: Blueprint devait être dans le même répertoire que le code
+**Après (v2.0)**: Blueprint est un orchestrateur séparé qui peut gérer n'importe quel projet Git
+
+**Bénéfices**:
+- ✅ Séparation claire : orchestration vs code
+- ✅ Réutilisabilité : un Blueprint pour plusieurs projets
+- ✅ Propreté : cahiers dans Blueprint/, code dans le projet cible
+- ✅ Traçabilité : toute la documentation centralisée
+
+**Nouvelles options CLI**:
+- `--project PATH` : Spécifier le projet cible pour toutes les commandes
+- Configuration `default_target_project` : Projet par défaut dans config.yaml
+
+**Architecture**:
+```mermaid
+graph LR
+    A[Blueprint Directory] -->|Orchestrate| B[Target Project]
+
+    subgraph Blueprint
+        A1[pipeline.db]
+        A2[cahiers_charges/]
+        A3[logs/]
+    end
+
+    subgraph "Target Project"
+        B1[.worktrees/]
+        B2[src/]
+        B3[main branch]
+    end
+```
+
+**Exemples**:
+```bash
+# Travailler sur un projet externe
+python orchestrator/main.py start "requirement" --project /path/to/my-app
+
+# Configurer un projet par défaut
+# config/pipeline_config.yaml:
+#   general:
+#     default_target_project: /path/to/my-app
+
+# Puis :
+python orchestrator/main.py start "requirement"  # Utilise le projet par défaut
+```
+
+### 🧹 Système de Nettoyage Phase-Aware
+
+**Nouveau**: Nettoyage intelligent qui distingue documents de planification et code réel
+
+**Avant (< v2.0)**: Nettoyage manuel ou risqué
+**Après (v2.0)**: Cleanup automatique basé sur la phase d'échec
+
+**Bénéfices**:
+- ✅ Protection du code : ne supprime jamais le code par erreur
+- ✅ Nettoyage automatique : cleanup auto en cas d'échec
+- ✅ Modes flexibles : standard, dry-run, force
+
+**Nouvelle commande**:
+```bash
+# Nettoyage standard (sécurisé)
+python orchestrator/main.py cleanup --project /path/to/mon-projet
+
+# Aperçu sans suppression
+python orchestrator/main.py cleanup --project /path/to/mon-projet --dry-run
+
+# Nettoyage forcé (tout supprimer)
+python orchestrator/main.py cleanup --project /path/to/mon-projet --force
+```
+
+**Logic Phase-Aware**:
+- Échec Phase 0/0.5/1 → Cleanup complet (aucun code généré)
+- Échec Phase 2/3/4 → Cleanup cahiers seulement (protège le code)
+
+**Ce qui est nettoyé**:
+
+| Mode | Cahiers | Worktrees vides | Worktrees avec code | DB |
+|------|---------|----------------|-------------------|-----|
+| Standard | ✅ | ✅ | ❌ Protégé | Conservé |
+| Force | ✅ | ✅ | ✅ Supprimé | Partiel |
+| Auto | ✅ | ✅ | Phase-aware | Conservé |
 
 **Avant (v1.x)**: Access control seulement dans les prompts (suggestion)
 **Après (v2.0)**: Access control stocké en DB, trackable, auditable
@@ -2544,6 +3096,171 @@ development:
 ```yaml
 phase4:
   batch_merge_enabled: false  # Merge une par une
+```
+
+---
+
+### Erreur : "Target project must be specified"
+
+**Symptôme** :
+```
+Error: Target project must be specified. Use --project or set default_target_project in config
+```
+
+**Solutions** :
+
+1. **Spécifier le projet via CLI** :
+```bash
+python orchestrator/main.py start "requirement" --project /path/to/mon-projet
+```
+
+2. **Configurer un projet par défaut** :
+```yaml
+# config/pipeline_config.yaml
+general:
+  default_target_project: "/path/to/mon-projet"
+```
+
+3. **Pour travailler sur Blueprint lui-même** :
+```bash
+python orchestrator/main.py start "requirement" --project .
+```
+
+---
+
+### Problème : Worktrees persistent après cleanup
+
+**Symptôme** : Les worktrees restent même après `cleanup`
+
+**Explication** : Par défaut, Blueprint **protège le code** généré. Les worktrees avec commits ne sont jamais supprimés en mode standard.
+
+**Solutions** :
+
+1. **Vérifier si les worktrees ont du code** :
+```bash
+# Dans le projet cible
+cd /path/to/mon-projet
+git worktree list
+cd .worktrees/TASK-101
+git log --oneline
+```
+
+2. **Forcer la suppression (DANGEREUX)** :
+```bash
+# ⚠️ Supprime TOUT, y compris le code
+python orchestrator/main.py cleanup --project /path/to/mon-projet --force
+```
+
+3. **Suppression manuelle sélective** :
+```bash
+cd /path/to/mon-projet
+git worktree remove .worktrees/TASK-101
+```
+
+---
+
+### Question : Pourquoi le nettoyage automatique ne supprime pas tout ?
+
+**Comportement Phase-Aware** :
+- **Échec Phase 0/0.5/1** : Supprime tout (aucun code généré)
+- **Échec Phase 2/3/4** : Garde le code, supprime seulement les cahiers
+
+**Principe** : "Tout ce qui n'a pas eu d'impact réel sur le code peut être supprimé sans demander"
+
+**Exemple** :
+```python
+# Logique interne de Blueprint
+if failed_phase in ['phase0', 'phase0_5', 'phase1']:
+    await self._cleanup_all_temp_files()  # Aucun code existe
+else:
+    await self._cleanup_cahiers_only()    # Protège le code
+```
+
+---
+
+### Erreur : "Branch 'main' not found"
+
+**Symptôme** :
+```
+Error: pathspec 'main' did not match any file(s) known to git
+```
+
+**Cause** : Votre projet utilise `master` au lieu de `main`
+
+**Solutions** :
+
+1. **Mettre à jour la configuration** :
+```yaml
+# config/pipeline_config.yaml
+git:
+  base_branch: "master"  # Au lieu de "main"
+```
+
+2. **Vérifier la branche actuelle** :
+```bash
+cd /path/to/mon-projet
+git branch
+# Si vous voyez "* master", utilisez "master" dans la config
+```
+
+---
+
+### Problème : Gemini CLI ne fonctionne pas
+
+**Symptôme** :
+```
+Warning: Gemini CLI not found. Skipping research.
+```
+
+**Solutions** :
+
+1. **Installer Gemini CLI** :
+```bash
+# Windows
+npm install -g @google/gemini-cli
+
+# WSL/Linux
+wsl npm install -g @google/gemini-cli
+```
+
+2. **Authentification** :
+```bash
+# Login OAuth (recommandé)
+gemini auth login
+
+# Ou via API key
+export GEMINI_API_KEY="votre-clé-api"
+```
+
+3. **Test** :
+```bash
+# Windows
+npx.cmd @google/gemini-cli "Test" --output-format json
+
+# WSL
+wsl npx @google/gemini-cli "Test" --output-format json
+```
+
+4. **Désactiver si non nécessaire** :
+```yaml
+phase0:
+  enable_gemini_research: false
+```
+
+---
+
+### Erreur : ModuleNotFoundError sous WSL
+
+**Symptôme** :
+```
+ModuleNotFoundError: No module named 'httpx'
+```
+
+**Solution** :
+```bash
+# Installer les packages Python dans WSL
+wsl pip install --break-system-packages httpx
+wsl pip install --break-system-packages -r requirements.txt
 ```
 
 ---

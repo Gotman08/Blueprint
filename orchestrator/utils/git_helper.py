@@ -77,8 +77,8 @@ class GitHelper:
 
         # Create worktree with new branch
         try:
-            self._run_git_command(
-                "worktree", "add",
+            self.repo.git.worktree(
+                "add",
                 "-b", branch_name,
                 str(worktree_path),
                 base_branch
@@ -86,8 +86,8 @@ class GitHelper:
         except GitCommandError as e:
             # If branch already exists, use it
             if "already exists" in str(e):
-                self._run_git_command(
-                    "worktree", "add",
+                self.repo.git.worktree(
+                    "add",
                     str(worktree_path),
                     branch_name
                 )

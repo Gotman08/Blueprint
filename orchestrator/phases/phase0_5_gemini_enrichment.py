@@ -13,9 +13,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ..db import Database
-from ..utils.logger import Logger
+from ..utils.logger import PipelineLogger
 from ..agents.gemini_researcher import GeminiResearcher
-from ..utils.config_loader import load_config
 
 
 class GeminiEnricher:
@@ -24,7 +23,7 @@ class GeminiEnricher:
     Traitement séquentiel avec 3 types d'enrichissement par cahier.
     """
 
-    def __init__(self, config: Dict, database: Database, logger: Logger):
+    def __init__(self, config: Dict, database: Database, logger: PipelineLogger):
         self.config = config
         self.db = database
         self.logger = logger
@@ -351,9 +350,10 @@ class GeminiEnricher:
         await self.db.update_cahier_hash(cahier['cahier_id'], new_hash)
 
 
-async def run_phase_0_5(config: Dict, database: Database, logger: Logger) -> Dict:
+async def run_phase0_5(config: Dict, logger: PipelineLogger, database: Database) -> int:
     """
     Point d'entrée pour Phase 0.5.
     """
     enricher = GeminiEnricher(config, database, logger)
-    return await enricher.run()
+    results = await enricher.run()
+    return results.get('enriched', 0)

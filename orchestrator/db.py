@@ -174,6 +174,18 @@ class Database:
                 FOREIGN KEY (cahier_id) REFERENCES cahiers_charges(cahier_id)
             );
 
+            -- Gemini enrichment table: tracks Phase 0.5 enrichments
+            CREATE TABLE IF NOT EXISTS gemini_enrichment (
+                enrichment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cahier_id TEXT NOT NULL,
+                enrichment_type TEXT NOT NULL,  -- 'good_practices', 'modern_approaches', 'real_world_context'
+                content TEXT,  -- Enriched content from Gemini
+                model TEXT DEFAULT 'gemini-2.5-pro',
+                duration_seconds INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (cahier_id) REFERENCES cahiers_charges(cahier_id)
+            );
+
             -- Indexes for performance
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
             CREATE INDEX IF NOT EXISTS idx_agents_task ON agents(task_id);
@@ -189,6 +201,8 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_cahiers_domain ON cahiers_charges(domain);
             CREATE INDEX IF NOT EXISTS idx_cahiers_task ON cahiers_charges(task_id);
             CREATE INDEX IF NOT EXISTS idx_gemini_research_cahier ON gemini_research(cahier_id);
+            CREATE INDEX IF NOT EXISTS idx_gemini_enrichment_cahier ON gemini_enrichment(cahier_id);
+            CREATE INDEX IF NOT EXISTS idx_gemini_enrichment_type ON gemini_enrichment(enrichment_type);
         """)
 
         await self.conn.commit()
@@ -1186,3 +1200,239 @@ class Database:
                     result['results'] = json.loads(result['results'])
 
             return results
+
+    async def create_enrichment(
+        self,
+        cahier_id: str,
+        enrichment_type: str,
+        content: str,
+        model: str = "gemini-2.5-pro",
+        duration_seconds: Optional[int] = None
+    ) -> int:
+        """
+        Create a Gemini enrichment record for Phase 0.5.
+
+        Args:
+            cahier_id: ID of the cahier being enriched
+            enrichment_type: Type of enrichment ('good_practices', 'modern_approaches', 'real_world_context')
+            content: Enriched content from Gemini
+            model: Model used for enrichment
+            duration_seconds: Time taken for enrichment
+
+        Returns:
+            Enrichment ID
+        """
+        cursor = await self.conn.execute("""
+            INSERT INTO gemini_enrichment (cahier_id, enrichment_type, content, model, duration_seconds)
+            VALUES (?, ?, ?, ?, ?)
+        """, (cahier_id, enrichment_type, content, model, duration_seconds))
+
+        await self.conn.commit()
+        return cursor.lastrowid
+
+    async def get_enrichments(self, cahier_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all enrichments for a specific cahier.
+
+        Args:
+            cahier_id: Cahier ID
+
+        Returns:
+            List of enrichment records
+        """
+        async with self.conn.execute(
+            "SELECT * FROM gemini_enrichment WHERE cahier_id = ? ORDER BY created_at",
+            (cahier_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def get_enrichment_by_type(
+        self,
+        cahier_id: str,
+        enrichment_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific type of enrichment for a cahier.
+
+        Args:
+            cahier_id: Cahier ID
+            enrichment_type: Type of enrichment
+
+        Returns:
+            Enrichment record or None
+        """
+        async with self.conn.execute(
+            "SELECT * FROM gemini_enrichment WHERE cahier_id = ? AND enrichment_type = ?",
+            (cahier_id, enrichment_type)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def get_all_enrichments(self) -> List[Dict[str, Any]]:
+        """
+        Get all enrichment records.
+
+        Returns:
+            List of all enrichment records
+        """
+        async with self.conn.execute(
+            "SELECT * FROM gemini_enrichment ORDER BY created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def count_enrichments(self, cahier_id: Optional[str] = None) -> int:
+        """
+        Count enrichments, optionally for a specific cahier.
+
+        Args:
+            cahier_id: Optional cahier ID to filter by
+
+        Returns:
+            Number of enrichments
+        """
+        if cahier_id:
+            async with self.conn.execute(
+                "SELECT COUNT(*) FROM gemini_enrichment WHERE cahier_id = ?",
+                (cahier_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+        else:
+            async with self.conn.execute(
+                "SELECT COUNT(*) FROM gemini_enrichment"
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+    async def delete_tasks_by_status(self, statuses: List[str]) -> int:
+        """
+        Delete tasks with specific statuses.
+
+        Args:
+            statuses: List of task statuses to delete
+
+        Returns:
+            Number of tasks deleted
+        """
+        if not statuses:
+            return 0
+
+        placeholders = ','.join('?' * len(statuses))
+        query = f"DELETE FROM tasks WHERE status IN ({placeholders})"
+
+        cursor = await self.conn.execute(query, statuses)
+        await self.conn.commit()
+
+        return cursor.rowcount
+
+    async def mark_incomplete_tasks_as_failed(self) -> int:
+        """
+        Mark all incomplete tasks as FAILED.
+
+        Returns:
+            Number of tasks marked as failed
+        """
+        # Define incomplete statuses
+        incomplete_statuses = [
+            'cahier_ready',
+            'dispatched',
+            'specialist_working',
+            'code_done',
+            'validation_pending',
+            'validation_failed'
+        ]
+
+        placeholders = ','.join('?' * len(incomplete_statuses))
+        query = f"""
+            UPDATE tasks
+            SET status = 'failed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status IN ({placeholders})
+        """
+
+        cursor = await self.conn.execute(query, incomplete_statuses)
+        await self.conn.commit()
+
+        return cursor.rowcount
+
+    async def delete_cahiers_for_failed_tasks(self) -> int:
+        """
+        Delete cahiers des charges for failed tasks.
+
+        Returns:
+            Number of cahiers deleted
+        """
+        # First get the cahier IDs for failed tasks
+        async with self.conn.execute("""
+            SELECT cahier_id FROM cahiers_charges
+            WHERE task_id IN (
+                SELECT task_id FROM tasks WHERE status = 'failed'
+            )
+        """) as cursor:
+            cahier_ids = [row[0] for row in await cursor.fetchall()]
+
+        if not cahier_ids:
+            return 0
+
+        # Delete from gemini_enrichment if exists
+        placeholders = ','.join('?' * len(cahier_ids))
+        await self.conn.execute(
+            f"DELETE FROM gemini_enrichment WHERE cahier_id IN ({placeholders})",
+            cahier_ids
+        )
+
+        # Delete from gemini_research if exists
+        await self.conn.execute(
+            f"DELETE FROM gemini_research WHERE cahier_id IN ({placeholders})",
+            cahier_ids
+        )
+
+        # Delete from cahiers_charges
+        cursor = await self.conn.execute(
+            f"DELETE FROM cahiers_charges WHERE cahier_id IN ({placeholders})",
+            cahier_ids
+        )
+
+        await self.conn.commit()
+        return cursor.rowcount
+
+    async def get_orphaned_tasks(self) -> List[Dict[str, Any]]:
+        """
+        Get tasks that are orphaned (failed or incomplete for more than 24 hours).
+
+        Returns:
+            List of orphaned tasks
+        """
+        query = """
+            SELECT * FROM tasks
+            WHERE (status = 'failed'
+                   OR (status IN ('cahier_ready', 'dispatched', 'specialist_working')
+                       AND datetime(updated_at) < datetime('now', '-24 hours')))
+            ORDER BY created_at DESC
+        """
+
+        async with self.conn.execute(query) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def cleanup_failed_agents(self) -> int:
+        """
+        Clean up agents for failed tasks.
+
+        Returns:
+            Number of agents cleaned up
+        """
+        query = """
+            DELETE FROM agents
+            WHERE task_id IN (
+                SELECT task_id FROM tasks
+                WHERE status = 'failed'
+            )
+        """
+
+        cursor = await self.conn.execute(query)
+        await self.conn.commit()
+
+        return cursor.rowcount

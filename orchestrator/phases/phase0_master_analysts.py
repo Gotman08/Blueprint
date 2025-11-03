@@ -507,7 +507,9 @@ src/{self.domain.name.lower()}/
         Returns:
             Path to saved file
         """
-        cahiers_dir = Path(self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges'))
+        # Cahiers are stored in Blueprint directory, not in target project
+        blueprint_dir = Path(__file__).parent.parent.parent
+        cahiers_dir = blueprint_dir / self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges')
         domain_dir = cahiers_dir / self.domain.name
         domain_dir.mkdir(parents=True, exist_ok=True)
 
@@ -558,7 +560,9 @@ src/{self.domain.name.lower()}/
         except Exception:
             task_counter = task_id_start
 
-        cahiers_dir = Path(self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges'))
+        # Cahiers are stored in Blueprint directory, not in target project
+        blueprint_dir = Path(__file__).parent.parent.parent
+        cahiers_dir = blueprint_dir / self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges')
         domain_dir = cahiers_dir / self.domain.name
 
         for task_data in tasks_data:
@@ -910,7 +914,9 @@ IMPORTANT: Return ONLY the JSON array, no other text.
             domains: List of domains
             cahier_paths: List of generated cahier paths
         """
-        cahiers_dir = Path(self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges'))
+        # Cahiers are stored in Blueprint directory, not in target project
+        blueprint_dir = Path(__file__).parent.parent.parent
+        cahiers_dir = blueprint_dir / self.phase0_config.get('cahiers_charges_dir', 'cahiers_charges')
         index_path = cahiers_dir / "index.json"
 
         # Create mapping

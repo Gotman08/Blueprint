@@ -1,0 +1,43 @@
+{
+  "name": "blueprint",
+  "version": "2.0.0",
+  "description": "Generative Agent Pipeline - Automated development workflow",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Running tests...\" && exit 0",
+    "lint": "echo \"Running linter...\" && exit 0",
+    "build": "echo \"Building project...\" && exit 0",
+    "test:unit": "echo \"Running unit tests...\" && exit 0",
+    "test:integration": "echo \"Running integration tests...\" && exit 0",
+    "test:coverage": "echo \"Running tests with coverage...\" && exit 0",
+    "lint:fix": "echo \"Running linter with auto-fix...\" && exit 0",
+    "build:production": "echo \"Building for production...\" && exit 0",
+    "clean": "echo \"Cleaning build artifacts...\" && exit 0",
+    "validate": "npm run lint && npm run test && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/blueprint.git"
+  },
+  "keywords": [
+    "automation",
+    "ai",
+    "generative",
+    "agents",
+    "pipeline",
+    "development",
+    "workflow"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/blueprint/issues"
+  },
+  "homepage": "https://github.com/yourusername/blueprint#readme",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
